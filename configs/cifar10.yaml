@@ -1,0 +1,31 @@
+batchsize: 128
+dataset: cifar10
+
+nepochs: 100
+
+log_dir : '/nfs/gatsbystor/michaela/projects/kale/exp'
+
+optimizer: Adam
+
+
+
+
+# For built-in data augmentation
+criterion : 'kale'
+
+
+# For data augmentation in classifier
+
+
+
+
+
+
+
+
+
+
+
+
+
+

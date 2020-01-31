@@ -16,6 +16,8 @@ import torch.backends.cudnn as cudnn
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
+import model, model_resnet
+
 
 
 def get_data_loader(args):
@@ -40,31 +42,10 @@ def get_data_loader(args):
 										 std=[0.5,0.5,0.5])
 		from imagenet import Imagenet32
 
-		padding = 4
 		spatial_size = 32
 		if args.dataset=='imagenet64':
 			spatial_size = 64
-			padding = 8
 		n_classes = 1000
-
-		if args.no_padding:
-			padding = 0
-
-		if args.correct_padding:
-			transforms_train = [
-				transforms.ToTensor(),
-				normalize,
-			]
-			transforms_test = [
-				transforms.ToTensor(),
-				normalize,
-			]
-		else:
-			transforms_train = [
-				transforms.ToTensor(),
-				normalize,
-			]
-			transforms_test = [transforms.ToTensor(), normalize]
 
 		trainset = Imagenet32(args.path_train, transform=transforms.Compose(transforms_train), sz=spatial_size)
 		valset = Imagenet32(args.path_test, transform=transforms.Compose(transforms_test), sz=spatial_size)
@@ -102,13 +83,13 @@ def get_loss(args):
 	elif args.criterion=='kale':
 		return losses.kale
 
-def get_reg(args, model):
-	if args.regularizer=='L2':
-		return L2_reg(model,args.reg_param)
-	elif args.regularizer=='None':
-		return None
-	else:
-		return None
+# def get_reg(args, model):
+# 	if args.regularizer=='L2':
+# 		return L2_reg(model,args.reg_param)
+# 	elif args.regularizer=='None':
+# 		return None
+# 	else:
+# 		return None
 
 def get_optimizer(args,params):
 	if args.optimizer == 'Adam':
