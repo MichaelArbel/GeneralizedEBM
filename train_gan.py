@@ -42,7 +42,7 @@ parser.add_argument('--dtype',  default = '32' ,type= str ,   help='gpu device')
 
 parser.add_argument('--total_epochs', default=100, type=int, help='total number of epochs')
 
-parser.add_argument('--model', default = 'dcgan' ,type= str,  help='gpu device')
+parser.add_argument('--model', default = 'sngan' ,type= str,  help='gpu device')
 parser.add_argument('--criterion',  default ='kale' ,type= str ,  help='loss')
 parser.add_argument('--latent_noise',  default ='gaussian' ,type= str ,  help='loss')
 
