@@ -9,7 +9,7 @@ import numpy as np
 # Plotting library.
 from matplotlib import pyplot as plt
 import matplotlib.gridspec as gridspec
-import seaborn as sns
+#import seaborn as sns
 
 import numpy as np
 
@@ -19,10 +19,9 @@ import time
 import numpy as np
 import pprint
 import socket
-import pickle
+
 # Don't forget to select GPU runtime environment in Runtime -> Change runtime type
 
-from copy import deepcopy
 #import tensorflow as tf
 from keras.applications.inception_v3 import InceptionV3
 
@@ -64,6 +63,8 @@ class Trainer(object):
 		if self.args.criterion=='kale':
 			self.log_partition = nn.Parameter(torch.tensor(0.).to(self.device), requires_grad=True)
 			trainable_params.append(self.log_partition)
+		else:
+			self.log_partition = 0.
 		self.optim_d = get_optimizer(self.args,trainable_params)
 		self.optim_g = get_optimizer(self.args,self.generator.parameters())
 		self.scheduler_d = get_scheduler(self.args, self.optim_d)
@@ -120,11 +121,22 @@ class Trainer(object):
 
 	def train(self):
 		for epoch in range(self.args.total_epochs):
+			print('Epoch: ' + str(epoch))
 			#self.evaluate(epoch)
 			self.train_epoch(epoch)
 			self.evaluate(epoch)
 			self.sample_images(epoch)
 			self.save_checkpoint(epoch)
+
+	def load(self):
+
+		d_model = torch.load(self.args.d_path +'.pth')#get_net(self.args, 'discriminator', self.device)
+		g_model = torch.load(self.args.g_path +'.pth') #get_net(self.args, 'generator', self.device)
+		self.noise_gen = get_latent(self.args,self.device)
+		self.discriminator.load_state_dict(d_model)
+		self.generator.load_state_dict(g_model)
+		self.discriminator = self.discriminator.to(self.device)
+		self.generator = self.generator.to(self.device)
 
 	def sample_images(self,epoch):
 
@@ -143,12 +155,16 @@ class Trainer(object):
 		plt.close(fig)
 
 	def evaluate(self,epoch):
-		Kale,images = self.acc_stats()
+		
 		if np.mod(epoch,10)==0:
+			Kale,images = self.acc_stats()
 			fid = self.compute_fid(images)
 			print('Kale ' +  str(Kale.item()) + ', FID: '+ str(fid))
-		else:
-			print('Kale ' +  str(Kale.item()))
+	def eval_pre_trained(self):
+		self.load()
+		self.sample_images(0)
+		self.evaluate(0)
+
 	def acc_stats(self):
 		n_batches = int(self.args.fid_samples/self.args.b_size)+1
 
@@ -217,6 +233,7 @@ def make_log_dir(args):
 	if not os.path.isdir(samples_dir):
 		os.mkdir(samples_dir)
 	return log_dir,checkpoint_dir,samples_dir
+
 def assign_device(device):
 	if device >-1:
 		device = 'cuda:'+str(device) if torch.cuda.is_available() and device>-1 else 'cpu'

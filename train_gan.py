@@ -23,6 +23,11 @@ parser = argparse.ArgumentParser(description='PyTorch CIFAR10 Training')
 parser.add_argument('--resume', '-r', action='store_true', help='resume from checkpoint')
 parser.add_argument('--log_name', default = '',type= str,  help='log directory for summaries and checkpoints')
 parser.add_argument('--log_dir', default = '',type= str,  help='log directory for summaries and checkpoints')
+parser.add_argument('--d_path', default = '',type= str,  help='log directory for summaries and checkpoints')
+parser.add_argument('--g_path', default = '',type= str,  help='log directory for summaries and checkpoints')
+parser.add_argument('--load_pre_trained', action = 'store_true', help='log directory for summaries and checkpoints')
+
+
 parser.add_argument('--dataset', default = 'cifar10',type= str,  help='log directory for summaries and checkpoints')
 parser.add_argument('--data_dir', default = 'data',type= str,  help='log directory for summaries and checkpoints')
 parser.add_argument('--log_in_file', action = 'store_true' ,  help='gpu device')
@@ -44,7 +49,7 @@ parser.add_argument('--latent_noise',  default ='gaussian' ,type= str ,  help='l
 # Optimizer parameters
 parser.add_argument('--optimizer', default = 'adam', type= str,  help='log directory for summaries and checkpoints')
 parser.add_argument('--b_size', default = 256, type= int,  help='gpu device')
-parser.add_argument('--lr', default=.1, type=float, help='learning rate')
+parser.add_argument('--lr', default=0.0002, type=float, help='learning rate')
 parser.add_argument('--sgd_momentum', default=0., type=float, help='learning rate')
 parser.add_argument('--beta_1', default=0.9, type=float, help='learning rate')
 parser.add_argument('--beta_2', default=0.999, type=float, help='learning rate')
@@ -76,8 +81,10 @@ args = parser.parse_args()
 args = make_flags(args,args.config)
 exp = Trainer(args)
 
-
-exp.train()
+if args.load_pre_trained:
+	exp.eval_pre_trained()
+else:
+	exp.train()
 #test_acc = exp.test()
 print('Training completed!')
 

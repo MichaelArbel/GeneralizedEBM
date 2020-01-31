@@ -15,7 +15,7 @@ import torch.backends.cudnn as cudnn
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
-import model, model_resnet
+import model, model_resnet, model_dcgan
 import losses
 
 
@@ -133,6 +133,8 @@ def get_net(args, net_type,device):
 	if args.model=='resnet':
 		_model = model_resnet
 	elif args.model=='dcgan':
+		_model = model_dcgan
+	elif args.model=='sngan':
 		_model = model
 	else:
 		raise NotImplementedError()	

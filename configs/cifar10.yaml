@@ -4,14 +4,22 @@ dataset: cifar10
 total_epochs: 100
 
 log_dir : '/nfs/gatsbystor/michaela/projects/kale/exp'
-log_name : 'test'
+log_name : 'test_2'
 optimizer: Adam
 
 
 
 
 # For built-in data augmentation
-criterion : 'kale'
+criterion : 'logistic'
+
+
+d_path : '/nfs/ghome/live/michaela/Documents/projects/gan-pretrained-pytorch/cifar10_dcgan/weights/netD_epoch_199'
+
+g_path : '/nfs/ghome/live/michaela/Documents/projects/gan-pretrained-pytorch/cifar10_dcgan/weights/netG_epoch_199'
+
+load_pre_trained : True
+Z_dim : 100
 
 # For data augmentation in classifier
 
