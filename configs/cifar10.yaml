@@ -14,13 +14,13 @@ optimizer: Adam
 criterion : 'logistic'
 
 
-#d_path : '/nfs/ghome/live/michaela/Documents/projects/gan-pretrained-pytorch/cifar10_dcgan/weights/netD_epoch_199'
+d_path : '/nfs/ghome/live/michaela/Documents/projects/gan-pretrained-pytorch/cifar10_dcgan/weights/netD_epoch_199'
 
-#g_path : '/nfs/ghome/live/michaela/Documents/projects/gan-pretrained-pytorch/cifar10_dcgan/weights/netG_epoch_199'
+g_path : '/nfs/ghome/live/michaela/Documents/projects/gan-pretrained-pytorch/cifar10_dcgan/weights/netG_epoch_199'
 
-#load_pre_trained : True
+load_pre_trained : True
 Z_dim : 128
-
+model : 'dcgan'
 # For data augmentation in classifier
 
 
