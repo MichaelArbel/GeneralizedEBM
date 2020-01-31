@@ -1,0 +1,23 @@
+alpha : 1
+J : 10
+L : 0.5
+off_set : .1
+seed_monotonic : 1
+smoothness_max : 3
+smoothness_min : -3
+center_offset_max : 4.
+center_offset_min : 2.
+log_dir : ''
+
+total_iter: 2000
+num_params_vals : 10
+total_kl_eval : 100
+num_sample_eval : 100000
+lr : 0.001
+b_size : 10000
+optimizer : rmsprop
+lr_decay : 0.9
+momentum : 0.
+
+sigma_1 : .5
+sigma_2 : .5
