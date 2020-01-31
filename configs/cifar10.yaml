@@ -1,7 +1,7 @@
-batchsize: 128
+b_size: 128
 dataset: cifar10
 
-nepochs: 100
+total_epochs: 100
 
 log_dir : '/nfs/gatsbystor/michaela/projects/kale/exp'
 

@@ -4,7 +4,6 @@ import hashlib
 import json
 import numpy as np
 import os
-import radam
 import time
 #import thop
 import ast
@@ -17,7 +16,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 import model, model_resnet
-
+import losses
 
 
 def get_data_loader(args):
@@ -33,10 +32,10 @@ def get_data_loader(args):
 		spatial_size = 32
 
 		trainset = CIFAR10(root='./data', train=True, download=True, transform=transform_train)
-		trainloader = torch.utils.data.DataLoader(trainset, batch_size=args.batchsize, shuffle=True, num_workers=args.num_workers)
+		trainloader = torch.utils.data.DataLoader(trainset, batch_size=args.b_size, shuffle=True, num_workers=args.num_workers)
 		n_classes=10
 		testset = CIFAR10(root='./data', train=False, download=True, transform=transform_test)
-		testloader = torch.utils.data.DataLoader(testset, batch_size=args.batchsize, shuffle=False, num_workers=args.num_workers)
+		testloader = torch.utils.data.DataLoader(testset, batch_size=args.b_size, shuffle=False, num_workers=args.num_workers)
 	elif args.dataset == 'imagenet32' or args.dataset=='imagenet64':
 		normalize = transforms.Normalize(mean=[0.5,0.5,0.5],
 										 std=[0.5,0.5,0.5])
@@ -50,8 +49,8 @@ def get_data_loader(args):
 		trainset = Imagenet32(args.path_train, transform=transforms.Compose(transforms_train), sz=spatial_size)
 		valset = Imagenet32(args.path_test, transform=transforms.Compose(transforms_test), sz=spatial_size)
 
-		trainloader = torch.utils.data.DataLoader(trainset, batch_size=args.batchsize, shuffle=True, num_workers=args.num_workers)
-		testloader = torch.utils.data.DataLoader(valset,batch_size=args.batchsize, shuffle=False,num_workers=args.num_workers)
+		trainloader = torch.utils.data.DataLoader(trainset, batch_size=args.b_size, shuffle=True, num_workers=args.num_workers)
+		testloader = torch.utils.data.DataLoader(valset,batch_size=args.b_size, shuffle=False,num_workers=args.num_workers)
 		n_classes = 1000
 	else:
 		raise NotImplementedError
@@ -60,13 +59,13 @@ def get_data_loader(args):
 
 def get_fid_stats(dataset):
 	if dataset=='cifar10':
-		path = 'res/stats_tf/fid_stats_cifar10_train.npz'
+		path = 'metrics/res/stats_tf/fid_stats_cifar10_train.npz'
 	elif dataset=='imagenet_train':
-		path = 'res/stats_tf/fid_stats_imagenet_train.npz'
+		path = 'metrics/res/stats_tf/fid_stats_imagenet_train.npz'
 	elif dataset=='imagenet_valid':
-		path = 'res/stats_tf/fid_stats_imagenet_valid.npz'
+		path = 'metrics/res/stats_tf/fid_stats_imagenet_valid.npz'
 	elif dataset=='celeba':
-		path = 'res/stats_tf/fid_stats_celeba.npz'
+		path = 'metrics/res/stats_tf/fid_stats_celeba.npz'
 
 	f = np.load(path)
 	mu1, sigma1 = f['mu'][:], f['sigma'][:]
@@ -94,8 +93,6 @@ def get_loss(args):
 def get_optimizer(args,params):
 	if args.optimizer == 'Adam':
 		optimizer = optim.Adam(params, lr=args.lr, weight_decay=args.weight_decay, betas = (args.beta_1,args.beta_2))
-	elif args.optimizer == 'RAdam':
-		optimizer = radam.RAdam(params, lr=args.lr, weight_decay=args.weight_decay)
 	elif args.optimizer == 'SGD':
 		optimizer = optim.SGD(params, lr=args.lr, momentum=args.sgd_momentum, weight_decay=args.weight_decay)
 	else:
@@ -122,14 +119,14 @@ def get_latent(args,device):
 def get_net(args, net_type,device):
 	if args.model=='resnet':
 		_model = model_resnet
-	elif args.model='dcgan':
+	elif args.model=='dcgan':
 		_model = model
 	else:
 		raise NotImplementedError()	
 	if net_type=='discriminator':
 		net = _model.Discriminator().to(device)
 	elif net_type =='generator':
-		net = _model.Generator().to(device)
+		net = _model.Generator(args.Z_dim).to(device)
 	return net
 	
 

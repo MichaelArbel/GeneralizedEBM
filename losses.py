@@ -14,14 +14,14 @@ def wasserstein(true_data,fake_data,loss_type):
 def logistic(true_data,fake_data,loss_type):
 	if loss_type =='discriminator':
 		loss = nn.BCEWithLogitsLoss()(true_data, Variable(torch.ones(true_data.shape[0], 1).to(true_data.device))) + \
-                    nn.BCEWithLogitsLoss()(fake_data, Variable(torch.zeros(fake_data.shape[0], 1).to(fake_data.device)))
-    	return loss
-    else:
-    	loss = nn.BCEWithLogitsLoss()(fake_data, Variable(torch.ones(fake_data.shape[0], 1).to(fake_data.device)))
-    	return loss
+					nn.BCEWithLogitsLoss()(fake_data, Variable(torch.zeros(fake_data.shape[0], 1).to(fake_data.device)))
+		return loss
+	else:
+		loss = nn.BCEWithLogitsLoss()(fake_data, Variable(torch.ones(fake_data.shape[0], 1).to(fake_data.device)))
+		return loss
 
 def kale(true_data,fake_data,loss_type):
 	if loss_type=='discriminator':
-		return  true_data.mean() + tr.exp(-fake_data).mean()  
+		return  true_data.mean() + torch.exp(-fake_data).mean()  
 	else:
-		return -true_data.mean() - tr.exp(-fake_data).mean()  
+		return -true_data.mean() - torch.exp(-fake_data).mean()  

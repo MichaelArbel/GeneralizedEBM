@@ -28,6 +28,7 @@ parser.add_argument('--data_dir', default = 'data',type= str,  help='log directo
 parser.add_argument('--log_in_file', action = 'store_true' ,  help='gpu device')
 parser.add_argument('--no_progress_bar', action = 'store_true' ,  help='gpu device')
 
+parser.add_argument('--num_workers', default = 4 ,type= int,  help='gpu device')
 
 
 parser.add_argument('--device', default = 0 ,type= int,  help='gpu device')
@@ -52,7 +53,7 @@ parser.add_argument('--weight_decay', default=0.0, type=float, help='learning ra
 parser.add_argument('--lr_decay',  default = 0.9 ,type= float ,  help='gpu device')
 
 parser.add_argument('--n_iter_d_init', default = 100, type= int,  help='gpu device')
-parser.add_argument('--n_iter_d_init', default = 5, type= int,  help='gpu device')
+parser.add_argument('--n_iter_d', default = 5, type= int,  help='gpu device')
 parser.add_argument('--Z_dim', default = 128, type= int,  help='gpu device')
 
 
@@ -66,6 +67,8 @@ parser.add_argument('--scheduler_gamma',  default =0.99 ,type= float ,  help='gp
 
 parser.add_argument('--config',  default ='' ,type= str ,  help='gpu device')
 parser.add_argument('--with_sacred',  default =False ,type= bool ,  help='gpu device')
+
+parser.add_argument('--fid_samples', default = 1000, type= int,  help='gpu device')
 
 
 

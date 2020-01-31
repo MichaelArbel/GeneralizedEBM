@@ -1,6 +1,8 @@
 import math
 
 import tensorflow as tf
+import torch
+
 
 import numpy as np
 
@@ -22,6 +24,9 @@ import pickle
 from copy import deepcopy
 import metrics.fid_official_tf as fid
 import tensorflow as tf
+from helpers import *
+from torch.autograd import Variable
+
 
 class Trainer(object):
 	def __init__(self,args):
@@ -29,10 +34,8 @@ class Trainer(object):
 		np.random.seed(args.seed)
 		self.args = args
 		self.device = assign_device(args.device)    
-		self.log_dir = make_log_dir(args)
+		self.log_dir,self.checkpoint_dir = make_log_dir(args)
 		self.args.log_dir= self.log_dir
-		self.make_checkpoint()
-		
 		if args.no_progress_bar:
 			self.log_file = open(os.path.join(self.log_dir, 'log.txt'), 'w', buffering=1)
 			sys.stdout = self.log_file
@@ -47,7 +50,7 @@ class Trainer(object):
 	def build_model(self):		
 		self.train_loader, self.test_loader = get_data_loader(self.args)
 		self.discriminator = get_net(self.args, 'discriminator', self.device)
-		trainable_params = list(filter(lambda p: p.requires_grad, discriminator.parameters()))
+		trainable_params = list(filter(lambda p: p.requires_grad, self.discriminator.parameters()))
 		self.generator = get_net(self.args, 'generator', self.device)
 		
 		if self.args.criterion=='kale':
@@ -57,11 +60,13 @@ class Trainer(object):
 		self.optim_g = get_optimizer(self.args,self.generator.parameters())
 		self.scheduler_d = get_scheduler(self.args, self.optim_d)
 		self.scheduler_g = get_scheduler(self.args, self.optim_g)
-		self.loss = get_loss(args)
+		self.loss = get_loss(self.args)
 		self.noise_gen = get_latent(self.args,self.device)
-		self.fixed_z = Variable(self.noise_gen([self.args.b_size]))
-		self.penalty_d = get_penatly(self.args)
+		self.fixed_z = Variable(self.noise_gen.sample([self.args.b_size]))
+		#self.penalty_d = get_penatly(self.args)
 		self.counter =0
+		self.g_loss = torch.tensor(0.)
+		self.d_loss = torch.tensor(0.)
 
 	def iteration(self,data,loss_type,train_mode='train'):
 		if train_mode=='train':
@@ -76,7 +81,7 @@ class Trainer(object):
 			fake_data += self.log_partition
 		loss = self.loss(true_data,fake_data,loss_type) 
 		if loss_type=='discriminator':
-			loss+= self.args.penalty_lambda*self.penalty_d(true_data,fake_data)			
+			#loss+= self.args.penalty_lambda*self.penalty_d(true_data,fake_data)			
 			optimizer = self.optim_d
 		elif loss_type=='generator':
 			optimizer = self.optim_g
@@ -94,13 +99,12 @@ class Trainer(object):
 			data = Variable(data.to(self.device))
 			self.counter += 1
 			if np.mod(self.counter, n_iter_d):
-				g_loss = self.iteration(data,'generator')
-				if batch_idx % 100 == 0:
-					print('gen loss'+ str(g_loss[0]))
+				self.g_loss = self.iteration(data,'generator')
 			else:
-				d_loss = self.iteration(data,'discriminator')
-				if batch_idx % 100 == 0:
-					print('critic loss' +  str(d_loss[0]))
+				self.d_loss = self.iteration(data,'discriminator')
+			if batch_idx % 100 == 0:
+				print('generator loss: '+ str(self.g_loss.item())+', critic loss: ' +  str(self.d_loss.item()))
+
 	def train(self):
 		for epoch in range(self.args.total_epochs):
 			self.train_epoch(epoch)
@@ -127,8 +131,9 @@ class Trainer(object):
 
 	def evaluate(self,epoch):
 		Kale,images = self.acc_stats()
-		fid = self.compute_fid(images)
-		print('Kale ' +  str(Kale) + ', FID: '+ str(fid))
+		#fid = self.compute_fid(images)
+		fid = 0.
+		print('Kale ' +  str(Kale.item()) + ', FID: '+ str(fid))
 
 	def acc_stats(self):
 		n_batches = int(self.args.fid_samples/self.args.b_size)+1
@@ -143,21 +148,22 @@ class Trainer(object):
 					gen_data = self.generator(Z)
 					fake_data = self.discriminator(gen_data)
 					if self.args.criterion=='kale':
-						true_data += self.log_partition
+						
 						fake_data += self.log_partition						
 					mean_gen += -torch.exp(-fake_data).sum()
 					# rescale images to [0,255]  assuming images range btween -1 and 1 
 					gen_data = gen_data*127.5+127.5
-					lengthstuff= min(sample_size-m,gen_data.shape[0])
+					lengthstuff= min(self.args.fid_samples-m,gen_data.shape[0])
 					if m==0:
-						images = np.zeros([self.args.fid_samples]+[gen_data.shape[1:]])
+						images = np.zeros([self.args.fid_samples]+list(gen_data.shape[1:]))
 					images[m:m+lengthstuff,:]=gen_data[:lengthstuff,:].detach().cpu().numpy()
-					m = m + outputs.size(0)
+					m = m + gen_data.size(0)
 			mean_gen /=  m
 			m = 0
 			for batch_idx, (data, target) in enumerate(self.test_loader):
 				data = Variable(data.to(self.device))
 				true_data = self.discriminator(data)
+				true_data += self.log_partition
 				mean_data += -true_data.sum()
 				m += true_data.size(0)
 			mean_data /= m
@@ -166,7 +172,7 @@ class Trainer(object):
 		return Kale,images
 
 	def compute_fid(self,images):
-		mu1, sigma1 = get_fid_stats(args.dataset)	
+		mu1, sigma1 = get_fid_stats(self.args.dataset)	
 		# Be careful about the range of the images they should be from 0 to 255 !!
 		with tf.Session() as sess:
 			sess.run(tf.global_variables_initializer())
@@ -175,24 +181,11 @@ class Trainer(object):
 		fid_score = calculate_frechet_distance(mu1, sigma1, mu2, sigma2)
 		return fid_score
 
-	def make_checkpoint_dir(self):
-		if self.args.save_model:
-			self.checkpoint_dir =os.path.join(self.log_dir,'/checkpoints/')
-			# if not os.path.exists(checkpoint_dir):
-			# 	os.makedirs(checkpoint_dir, exist_ok=True)
-			# hashname = hashlib.md5(str.encode(json.dumps(vars(self.args), sort_keys=True))).hexdigest()
-			# checkpoint_file = os.path.join(checkpoint_dir, str(hashname)+'.pth.tar')
-			# print('Model will be saved at file '+str(checkpoint_file)+'.')
-			# self.state = {'args': self.args}
-			# if os.path.exists(self.checkpoint_file):
-			# 	self.state = torch.load(checkpoint_file)
-			# self.checkpoint_file = checkpoint_file        
 	def save_checkpoint(self,epoch):
-			#self.state = self.model.update_state(self.state,mode,epoch,acc)
-			torch.save(self.discriminator.state_dict(), os.path.join(self.checkpoint_file, 'disc_{}'.format(epoch) ))
-			torch.save(self.generator.state_dict(), os.path.join(self.checkpoint_file, 'gen_{}'.format(epoch) ))
+			torch.save(self.discriminator.state_dict(), os.path.join(self.checkpoint_dir, 'disc_{}'.format(epoch) ))
+			torch.save(self.generator.state_dict(), os.path.join(self.checkpoint_dir, 'gen_{}'.format(epoch) ))
 			if self.args.criterion=='kale':
-				torch.save({'log_partition':self.log_partition}, os.path.join(self.checkpoint_file, 'log_partition_{}'.format(epoch) ))
+				torch.save({'log_partition':self.log_partition}, os.path.join(self.checkpoint_dir, 'log_partition_{}'.format(epoch) ))
 
 def make_log_dir(args):
 	if args.with_sacred:
@@ -201,6 +194,16 @@ def make_log_dir(args):
 		log_dir = os.path.join(args.log_dir,args.log_name)
 	if not os.path.isdir(log_dir):
 		os.mkdir(log_dir)
-	return log_dir
-
+	checkpoint_dir =os.path.join(log_dir,'checkpoints')
+	if not os.path.isdir(checkpoint_dir):
+		os.mkdir(checkpoint_dir)
+	return log_dir,checkpoint_dir
+def assign_device(device):
+	if device >-1:
+		device = 'cuda:'+str(device) if torch.cuda.is_available() and device>-1 else 'cpu'
+	elif device==-1:
+		device = 'cuda'
+	elif device==-2:
+		device = 'cpu'
+	return device
 	
