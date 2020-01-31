@@ -4,7 +4,7 @@ dataset: cifar10
 total_epochs: 100
 
 log_dir : '/nfs/gatsbystor/michaela/projects/kale/exp'
-
+log_name : 'test'
 optimizer: Adam
 
 
@@ -12,7 +12,6 @@ optimizer: Adam
 
 # For built-in data augmentation
 criterion : 'kale'
-
 
 # For data augmentation in classifier
 

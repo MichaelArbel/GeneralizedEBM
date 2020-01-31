@@ -8,6 +8,7 @@ import numpy as np
 
 # Plotting library.
 from matplotlib import pyplot as plt
+import matplotlib.gridspec as gridspec
 import seaborn as sns
 
 import numpy as np
@@ -22,10 +23,17 @@ import pickle
 # Don't forget to select GPU runtime environment in Runtime -> Change runtime type
 
 from copy import deepcopy
-import metrics.fid_official_tf as fid
-import tensorflow as tf
+#import tensorflow as tf
+from keras.applications.inception_v3 import InceptionV3
+
+import torch
+
+
+
 from helpers import *
 from torch.autograd import Variable
+import metrics.fid  as fid
+#from metrics import is_fid_pytorch
 
 
 class Trainer(object):
@@ -34,7 +42,7 @@ class Trainer(object):
 		np.random.seed(args.seed)
 		self.args = args
 		self.device = assign_device(args.device)    
-		self.log_dir,self.checkpoint_dir = make_log_dir(args)
+		self.log_dir,self.checkpoint_dir,self.samples_dir = make_log_dir(args)
 		self.args.log_dir= self.log_dir
 		if args.no_progress_bar:
 			self.log_file = open(os.path.join(self.log_dir, 'log.txt'), 'w', buffering=1)
@@ -67,6 +75,11 @@ class Trainer(object):
 		self.counter =0
 		self.g_loss = torch.tensor(0.)
 		self.d_loss = torch.tensor(0.)
+		self.fid_model = InceptionV3(include_top=False, pooling='avg', input_shape=(299,299,3))
+		#self.fid_model = torch.hub.load('pytorch/vision:v0.5.0', 'inception_v3', pretrained=True)
+		#self.fid_model.eval()
+
+		#self.is_fid_model = is_fid_pytorch.ScoreModel(mode=2, stats_file='res/stats_pytorch/fid_stats_cifar10_train.npz', cuda=cuda)
 
 	def iteration(self,data,loss_type,train_mode='train'):
 		if train_mode=='train':
@@ -107,8 +120,10 @@ class Trainer(object):
 
 	def train(self):
 		for epoch in range(self.args.total_epochs):
+			#self.evaluate(epoch)
 			self.train_epoch(epoch)
 			self.evaluate(epoch)
+			self.sample_images(epoch)
 			self.save_checkpoint(epoch)
 
 	def sample_images(self,epoch):
@@ -124,17 +139,16 @@ class Trainer(object):
 			ax.set_yticklabels([])
 			ax.set_aspect('equal')
 			plt.imshow(sample.transpose((1,2,0)) * 0.5 + 0.5)
-		if not os.path.exists('out/'):
-			os.makedirs('out/')
-		plt.savefig('out/{}.png'.format(str(epoch).zfill(3)), bbox_inches='tight')
+		plt.savefig(self.samples_dir+'/{}.png'.format(str(epoch).zfill(3)), bbox_inches='tight')
 		plt.close(fig)
 
 	def evaluate(self,epoch):
 		Kale,images = self.acc_stats()
-		#fid = self.compute_fid(images)
-		fid = 0.
-		print('Kale ' +  str(Kale.item()) + ', FID: '+ str(fid))
-
+		if np.mod(epoch,10)==0:
+			fid = self.compute_fid(images)
+			print('Kale ' +  str(Kale.item()) + ', FID: '+ str(fid))
+		else:
+			print('Kale ' +  str(Kale.item()))
 	def acc_stats(self):
 		n_batches = int(self.args.fid_samples/self.args.b_size)+1
 
@@ -155,8 +169,8 @@ class Trainer(object):
 					gen_data = gen_data*127.5+127.5
 					lengthstuff= min(self.args.fid_samples-m,gen_data.shape[0])
 					if m==0:
-						images = np.zeros([self.args.fid_samples]+list(gen_data.shape[1:]))
-					images[m:m+lengthstuff,:]=gen_data[:lengthstuff,:].detach().cpu().numpy()
+						images = torch.zeros([self.args.fid_samples]+list(gen_data.shape[1:]))
+					images[m:m+lengthstuff,:]=gen_data[:lengthstuff,:].detach().cpu()
 					m = m + gen_data.size(0)
 			mean_gen /=  m
 			m = 0
@@ -172,13 +186,15 @@ class Trainer(object):
 		return Kale,images
 
 	def compute_fid(self,images):
+		#path  = get_fid_stats_pytorch(self.args.dataset)
+		#is_fid_model = is_fid_pytorch.ScoreModel(mode=2, stats_file=path, cuda=True, device=self.device)
+		#imgs_nchw = torch.Tensor(50000, C, H, W) # torch.Tensor in -1~1, normalized by mean=[0.500, 0.500, 0.500], std=[0.500, 0.500, 0.500]
+		#is_mean, is_std, fid_score = is_fid_model.get_score_image_tensor(images)
+
 		mu1, sigma1 = get_fid_stats(self.args.dataset)	
 		# Be careful about the range of the images they should be from 0 to 255 !!
-		with tf.Session() as sess:
-			sess.run(tf.global_variables_initializer())
-			mu2, sigma2 = fid_official_tf.calculate_activation_statistics(images, sess, batch_size=100)
-
-		fid_score = calculate_frechet_distance(mu1, sigma1, mu2, sigma2)
+		mu2,sigma2 = fid.compute_stats(self.fid_model,images, self.args.b_size)
+		fid_score = fid.compute_fid(mu1, sigma1, mu2, sigma2)
 		return fid_score
 
 	def save_checkpoint(self,epoch):
@@ -194,10 +210,13 @@ def make_log_dir(args):
 		log_dir = os.path.join(args.log_dir,args.log_name)
 	if not os.path.isdir(log_dir):
 		os.mkdir(log_dir)
-	checkpoint_dir =os.path.join(log_dir,'checkpoints')
+	checkpoint_dir = os.path.join(log_dir,'checkpoints')
+	samples_dir = os.path.join(log_dir,'samples')
 	if not os.path.isdir(checkpoint_dir):
 		os.mkdir(checkpoint_dir)
-	return log_dir,checkpoint_dir
+	if not os.path.isdir(samples_dir):
+		os.mkdir(samples_dir)
+	return log_dir,checkpoint_dir,samples_dir
 def assign_device(device):
 	if device >-1:
 		device = 'cuda:'+str(device) if torch.cuda.is_available() and device>-1 else 'cpu'

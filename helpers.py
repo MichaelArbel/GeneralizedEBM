@@ -71,6 +71,19 @@ def get_fid_stats(dataset):
 	mu1, sigma1 = f['mu'][:], f['sigma'][:]
 	f.close()		
 	return mu1, sigma1
+def get_fid_stats_pytorch(dataset):
+	if dataset=='cifar10':
+		path = 'metrics/res/stats_pytorch/fid_stats_cifar10_train.npz'
+	elif dataset=='imagenet_train':
+		path = 'metrics/res/stats_pytorch/fid_stats_imagenet_train.npz'
+	elif dataset=='imagenet_valid':
+		path = 'metrics/res/stats_pytorch/fid_stats_imagenet_valid.npz'
+	elif dataset=='celeba':
+		path = 'metrics/res/stats_pytorch/fid_stats_celeba.npz'
+
+	return path
+
+
 
 def get_loss(args):
 	if args.criterion=='hinge':
