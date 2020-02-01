@@ -1,6 +1,6 @@
 import math
 
-import tensorflow as tf
+#import tensorflow as tf
 import torch
 
 
@@ -23,16 +23,18 @@ import socket
 # Don't forget to select GPU runtime environment in Runtime -> Change runtime type
 
 #import tensorflow as tf
-from keras.applications.inception_v3 import InceptionV3
-
+#from keras.applications.inception_v3 import InceptionV3
+from metrics.inception import InceptionV3
 import torch
 
 
 
 from helpers import *
 from torch.autograd import Variable
-import metrics.fid  as fid
-#from metrics import is_fid_pytorch
+
+import metrics.fid_pytorch as fid_pytorch
+
+
 
 
 class Trainer(object):
@@ -76,11 +78,23 @@ class Trainer(object):
 		self.counter =0
 		self.g_loss = torch.tensor(0.)
 		self.d_loss = torch.tensor(0.)
-		self.fid_model = InceptionV3(include_top=False, pooling='avg', input_shape=(299,299,3))
+		#self.fid_model = InceptionV3(include_top=False, pooling='avg', input_shape=(299,299,3))
 		#self.fid_model = torch.hub.load('pytorch/vision:v0.5.0', 'inception_v3', pretrained=True)
 		#self.fid_model.eval()
+		path  = get_fid_stats_pytorch(self.args.dataset)
+		#self.is_fid_model = is_fid_pytorch.ScoreModel(mode=2, stats_file=path, cuda=True, device=self.device)
 
-		#self.is_fid_model = is_fid_pytorch.ScoreModel(mode=2, stats_file='res/stats_pytorch/fid_stats_cifar10_train.npz', cuda=cuda)
+		#self.inception_fid = new_fid.PartialInceptionNetwork(transform_input=True)
+		#inception_network = PartialInceptionNetwork()
+		#self.inception_fid = self.inception_fid.to(self.device)
+		#self.inception_fid.eval()
+		#self.FID_scorer = fid_keras.FrechetInceptionDistance(None,image_range=(-1,1))
+
+		#self._inception_v3 = InceptionV3(include_top=False, pooling='avg')
+		#self._pool_size = self._inception_v3.output_shape[-1]
+		block_idx = InceptionV3.BLOCK_INDEX_BY_DIM[2048]
+
+		self.fid_model = InceptionV3([block_idx]).to(self.device)
 
 	def iteration(self,data,loss_type,train_mode='train'):
 		if train_mode=='train':
@@ -122,7 +136,7 @@ class Trainer(object):
 	def train(self):
 		for epoch in range(self.args.total_epochs):
 			print('Epoch: ' + str(epoch))
-			#self.evaluate(epoch)
+			self.evaluate(epoch)
 			self.train_epoch(epoch)
 			self.evaluate(epoch)
 			self.sample_images(epoch)
@@ -181,8 +195,7 @@ class Trainer(object):
 						
 						fake_data += self.log_partition						
 					mean_gen += -torch.exp(-fake_data).sum()
-					# rescale images to [0,255]  assuming images range btween -1 and 1 
-					gen_data = gen_data*127.5+127.5
+
 					lengthstuff= min(self.args.fid_samples-m,gen_data.shape[0])
 					if m==0:
 						images = torch.zeros([self.args.fid_samples]+list(gen_data.shape[1:]))
@@ -202,16 +215,33 @@ class Trainer(object):
 		return Kale,images
 
 	def compute_fid(self,images):
-		#path  = get_fid_stats_pytorch(self.args.dataset)
-		#is_fid_model = is_fid_pytorch.ScoreModel(mode=2, stats_file=path, cuda=True, device=self.device)
-		#imgs_nchw = torch.Tensor(50000, C, H, W) # torch.Tensor in -1~1, normalized by mean=[0.500, 0.500, 0.500], std=[0.500, 0.500, 0.500]
-		#is_mean, is_std, fid_score = is_fid_model.get_score_image_tensor(images)
+		mu2, sigma2 = fid_pytorch.compute_stats(images, self.fid_model,self.device,batch_size=128 )
+		try:
+			mu1_train, sigma1_train = get_fid_stats(self.args.dataset+'_train')
+		except:
+			mu1_train, sigma1_train = self.compute_inception_stats('train',self.train_loader)
+		fid_train = fid_pytorch.calculate_frechet_distance(mu1_train, sigma1_train, mu2, sigma2)
 
-		mu1, sigma1 = get_fid_stats(self.args.dataset)	
-		# Be careful about the range of the images they should be from 0 to 255 !!
-		mu2,sigma2 = fid.compute_stats(self.fid_model,images, self.args.b_size)
-		fid_score = fid.compute_fid(mu1, sigma1, mu2, sigma2)
+		
+		if 	self.test_loader is not None:
+			try:
+				mu1_valid, sigma1_valid = get_fid_stats(self.args.dataset+'_valid')
+			except:
+				mu1_valid, sigma1_valid = self.compute_inception_stats('valid',self.test_loader)
+			fid_valid = fid_pytorch.calculate_frechet_distance(mu1_valid, sigma1_valid, mu2, sigma2)
+
+			return fid_train,fid_valid
+			
 		return fid_score
+
+	def compute_inception_stats(self,type_dataset,data_loader):
+		mu_train,sigma_train= fid_pytorch.compute_stats_from_loader(self.fid_model,data_loader,self.device)
+		#mu_1,sigma_1 = get_fid_stats(self.args.dataset+'_'+type_dataset)
+		path = 'metrics/res/stats_pytorch/fid_stats_'+self.args.dataset+'_'+type_dataset+'.npz'
+		np.savez(path, mu=mu_train, sigma=sigma_train)
+		#if self.test_loader is not None:
+		#	mu_test,sigma_test= fid_pytorch.compute_stats_from_loader(self.fid_model,self.test_loader,self.device)
+		return mu_train,sigma_train
 
 	def save_checkpoint(self,epoch):
 			torch.save(self.discriminator.state_dict(), os.path.join(self.checkpoint_dir, 'disc_{}'.format(epoch) ))
@@ -242,4 +272,16 @@ def assign_device(device):
 	elif device==-2:
 		device = 'cpu'
 	return device
-	
+
+def compute_fid(mu1, sigma1, mu2, sigma2):
+	# calculate activations
+	# calculate sum squared difference between means
+	ssdiff = numpy.sum((mu1 - mu2)**2.0)
+	# calculate sqrt of product between cov
+	covmean = sqrtm(sigma1.dot(sigma2))
+	# check and correct imaginary numbers from sqrt
+	if iscomplexobj(covmean):
+		covmean = covmean.real
+	# calculate score
+	fid = ssdiff + trace(sigma1 + sigma2 - 2.0 * covmean)
+	return fid

@@ -85,6 +85,7 @@ if args.load_pre_trained:
 	exp.eval_pre_trained()
 else:
 	exp.train()
+#exp.compute_inception_stats()
 #test_acc = exp.test()
 print('Training completed!')
 

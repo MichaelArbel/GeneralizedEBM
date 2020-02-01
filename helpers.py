@@ -58,14 +58,16 @@ def get_data_loader(args):
 
 
 def get_fid_stats(dataset):
-	if dataset=='cifar10':
-		path = 'metrics/res/stats_tf/fid_stats_cifar10_train.npz'
+	if dataset=='cifar10_train':
+		path = 'metrics/res/stats_pytorch/fid_stats_cifar10_train.npz'
+	elif dataset=='cifar10_valid':
+		path = 'metrics/res/stats_pytorch/fid_stats_cifar10_valid.npz'
 	elif dataset=='imagenet_train':
-		path = 'metrics/res/stats_tf/fid_stats_imagenet_train.npz'
-	elif dataset=='imagenet_valid':
-		path = 'metrics/res/stats_tf/fid_stats_imagenet_valid.npz'
+		path = 'metrics/res/stats_pytorch/fid_stats_imagenet_train.npz'
+	elif dataset=='imagenet_train':
+		path = 'metrics/res/stats_pytorch/fid_stats_imagenet_valid.npz'
 	elif dataset=='celeba':
-		path = 'metrics/res/stats_tf/fid_stats_celeba.npz'
+		path = 'metrics/res/stats_pytorch/fid_stats_celeba.npz'
 
 	f = np.load(path)
 	mu1, sigma1 = f['mu'][:], f['sigma'][:]

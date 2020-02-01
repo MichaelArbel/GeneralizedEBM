@@ -11,7 +11,7 @@ optimizer: Adam
 
 
 # For built-in data augmentation
-criterion : 'logistic'
+criterion : 'kale'
 
 
 d_path : 'weights/dcgan/netD_epoch_199'
