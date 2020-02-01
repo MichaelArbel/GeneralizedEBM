@@ -76,6 +76,9 @@ parser.add_argument('--with_sacred',  default =False ,type= bool ,  help='gpu de
 parser.add_argument('--fid_samples', default = 1000, type= int,  help='gpu device')
 
 
+parser.add_argument('--sample_type', type= str,  help='types of posterior samples to draw')
+
+
 
 args = parser.parse_args()
 args = make_flags(args,args.config)
