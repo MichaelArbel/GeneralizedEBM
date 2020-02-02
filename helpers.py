@@ -141,7 +141,7 @@ def get_latent(args,device):
 
 
 # get posterior samples using MLE information learned by the GAN
-def get_latent_samples(args, device, s_type, g=None, h=None, gamma=2e-2, kappa=4e-2, T=1000):
+def get_latent_samples(args, device, s_type, g=None, h=None, gamma=2e-2, kappa=4e-2, T=200):
     normal_gen = torch.distributions.Normal(torch.zeros((args.b_size, args.Z_dim)).to(device),1)
     prior_z = normal_gen.sample()
 
@@ -183,7 +183,7 @@ def get_latent_samples(args, device, s_type, g=None, h=None, gamma=2e-2, kappa=4
                 V.append(V_tilde - gamma / 2 * dUdZ)
                 Z.append(Z_half + gamma / 2 * V[t+1])
 
-        if s_type.startsWith('mmc'):
+        if s_type.startswith('mmc'):
             # michael monte carlo
             if s_type == 'mmc1':
                 C = 0

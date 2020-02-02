@@ -15,8 +15,12 @@ import csv
 import sys
 import os
 import time
+from datetime import datetime
 import pprint
 import socket
+import json
+
+import timeit
 
 # Don't forget to select GPU runtime environment in Runtime -> Change runtime type
 
@@ -27,12 +31,14 @@ from metrics.inception import InceptionV3
 
 
 class Trainer(object):
-    def __init__(self,args):
+    def __init__(self, args, load_inception=True):
         torch.manual_seed(args.seed)
         np.random.seed(args.seed)
         self.args = args
-        self.device = assign_device(args.device)    
-        self.log_dir,self.checkpoint_dir,self.samples_dir = make_log_dir(args)
+        self.device = assign_device(args.device)
+        now = datetime.now()
+        self.trainer_id = now.strftime('%m-%d_%H-%M')
+        self.log_dir,self.checkpoint_dir,self.samples_dir = make_log_dir(args, self.trainer_id)
         self.args.log_dir= self.log_dir
         if args.no_progress_bar:
             self.log_file = open(os.path.join(self.log_dir, 'log.txt'), 'w', buffering=1)
@@ -42,7 +48,10 @@ class Trainer(object):
         pp = pprint.PrettyPrinter(indent=4)
         pp.pprint(vars(args))
         print('==> Building model..')
+        self.load_inception = load_inception
         self.build_model()
+
+        
 
     # model building functions
 
@@ -73,8 +82,10 @@ class Trainer(object):
         self.g_loss = torch.tensor(0.)
         self.d_loss = torch.tensor(0.)
 
-        block_idx = InceptionV3.BLOCK_INDEX_BY_DIM[2048]
-        self.fid_model = InceptionV3([block_idx]).to(self.device)
+        if self.load_inception:
+            print('==> Loading inception network...')
+            block_idx = InceptionV3.BLOCK_INDEX_BY_DIM[2048]
+            self.fid_model = InceptionV3([block_idx]).to(self.device)
 
     def load_generator(self):
         g_model = torch.load(self.args.g_path +'.pth')
@@ -96,11 +107,11 @@ class Trainer(object):
             if net_type=='discriminator':
                 #loss+= self.args.penalty_lambda*self.penalty_d(true_results,fake_results)            
                 optimizer = self.optim_d
+                self.discriminator.train()
             elif net_type=='generator':
                 optimizer = self.optim_g
+                self.generator.train()
             optimizer.zero_grad()
-            self.generator.train()
-            self.discriminator.train()
         else:
             self.generator.eval()
             self.discriminator.eval()
@@ -126,7 +137,7 @@ class Trainer(object):
         else:
             n_iter_d = self.args.n_iter_d
         for batch_idx, (data, target) in enumerate(self.train_loader):
-            data = torch.tensor(data.to(self.device))
+            data = data.to(self.device).clone().detach()
             self.counter += 1
             # discriminator takes n_iter_d steps of learning for each generator step
             if np.mod(self.counter, n_iter_d) == 0:
@@ -137,63 +148,73 @@ class Trainer(object):
                 print(f'generator loss: {self.g_loss.item()}, critic loss: {self.d_loss.item()}')
 
     # same as train_epoch, but shortcut to just train the discriminator
-    def train_discriminator(self,epoch):
+    def train_discriminator(self, epoch=0):
         for batch_idx, (data, target) in enumerate(self.train_loader):
-            data = torch.tensor(data.to(self.device))
+            data = data.to(self.device).clone().detach()
             self.d_loss = self.iteration(data, net_type='discriminator', train_mode=True)
             if batch_idx % 100 == 0:
                 print(f' critic loss: {self.d_loss.item()}')
 
 
     # just train the thing, both the generator and discriminator
-    def train(self):
+    # which: which models to train?
+    # pretrained: load pretrained models?
+    def train(self, which='dg', pretrained=''):
+        if 'd' in pretrained:
+            self.load_discriminator()
+        if 'g' in pretrained:
+            self.load_generator()
         for epoch in range(self.args.total_epochs):
             print(f'Epoch: {epoch}')
-            self.train_epoch(epoch)
+            # only train specified network(s)
+            if 'g' in which and 'd' in which:
+                self.train_epoch(self, epoch)
+            elif 'd' in which:
+                self.train_discriminator(epoch)
             self.evaluate(epoch)
             self.sample_images(epoch)
             self.save_checkpoint(epoch)
 
     # model evaluation functions
 
+    # fast, easy, model evaluation function to generate some images real fast, and maybe compute scores
     # evaluate a pretrained model. load generator and discriminator from a path
-    def eval_pre_trained(self):
+    def eval_pre_trained(self, evaluate=True):
+        print('==> Evaluating pre-trained model...')
         self.load_generator()
         self.load_discriminator()
-        for epoch in range(self.args.total_epochs):
-            print('Epoch: ' + str(epoch))
-            #self.train_discriminator(epoch)
-            self.evaluate(epoch)
-            self.sample_images(epoch)
-            self.save_checkpoint(epoch)
         self.sample_images(0)
-        # self.evaluate(0)
+        if self.eval_mode:
+            self.evaluate(0)
 
     # samples 64 images according to all types in the the sample_type argument, saves them
     def sample_images(self, epoch=0):
-        sample_types = self.args.sample_type.split(',')
-        for s in sample_types:
-            sample_z = hp.get_latent_samples(self.args, self.device, s_type=s, g=self.generator, h=self.discriminator)
-            samples = self.generator(sample_z).cpu().detach().numpy()[:64]
+        if np.mod(epoch, 10) == 0:
+            sample_types = self.args.sample_type.split(',')
+            for s in sample_types:
+                sample_z = hp.get_latent_samples(self.args, self.device, s_type=s, g=self.generator, h=self.discriminator)
+                samples = self.generator(sample_z).cpu().detach().numpy()[:64]
 
-            fig = plt.figure(figsize=(8, 8))
-            gs = gridspec.GridSpec(8, 8)
-            gs.update(wspace=0.05, hspace=0.05)
-            for i, sample in enumerate(samples):
-                ax = plt.subplot(gs[i])
-                plt.axis('off')
-                ax.set_xticklabels([])
-                ax.set_yticklabels([])
-                ax.set_aspect('equal')
-                plt.imshow(sample.transpose((1,2,0)) * 0.5 + 0.5)
-            plt.savefig(self.samples_dir+'/{}-{}.png'.format(str(epoch).zfill(3),s), bbox_inches='tight')
-            plt.close(fig)
+                fig = plt.figure(figsize=(8, 8))
+                gs = gridspec.GridSpec(8, 8)
+                gs.update(wspace=0.05, hspace=0.05)
+                for i, sample in enumerate(samples):
+                    ax = plt.subplot(gs[i])
+                    plt.axis('off')
+                    ax.set_xticklabels([])
+                    ax.set_yticklabels([])
+                    ax.set_aspect('equal')
+                    plt.imshow(sample.transpose((1,2,0)) * 0.5 + 0.5)
+                plt.savefig(self.samples_dir+'/{}-{}.png'.format(str(epoch).zfill(3),s), bbox_inches='tight')
+                plt.close(fig)
 
     # evaluate a particular epoch, but only every 10
     def evaluate(self, epoch=0):
         if np.mod(epoch, 10) == 0:
             KALE, images = self.acc_stats()
-            fid = self.compute_fid(images)
+            fid = 'N/A'
+            if self.load_inception:
+                fid = self.compute_fid(images)
             print(f'KALE: {KALE.item()}, FID: {fid}')
 
     # calculate KALE and generated images
@@ -224,7 +245,7 @@ class Trainer(object):
             m = 0
             for batch_idx, (data, target) in enumerate(self.test_loader):
                 # get real data and run through discriminator
-                data = torch.tensor(data.to(self.device))
+                data = data.to(self.device).clone().detach()
                 true_data = self.discriminator(data)
                 true_data += self.log_partition
                 mean_data += -true_data.sum()
@@ -236,6 +257,8 @@ class Trainer(object):
 
     # compute the FID score
     def compute_fid(self, images):
+        print('==> Computing FID')
+
         mu2, sigma2 = fid_pytorch.compute_stats(images, self.fid_model,self.device,batch_size=128 )
         try:
             mu1_train, sigma1_train = hp.get_fid_stats(self.args.dataset+'_train')
@@ -265,12 +288,12 @@ class Trainer(object):
         return mu_train,sigma_train
 
     def save_checkpoint(self,epoch):
-            torch.save(self.discriminator.state_dict(), os.path.join(self.checkpoint_dir, 'disc_{}'.format(epoch) ))
-            torch.save(self.generator.state_dict(), os.path.join(self.checkpoint_dir, 'gen_{}'.format(epoch) ))
-            if self.args.criterion=='kale':
-                torch.save({'log_partition':self.log_partition}, os.path.join(self.checkpoint_dir, 'log_partition_{}'.format(epoch) ))
+        torch.save(self.discriminator.state_dict(), os.path.join(self.checkpoint_dir, f'disc_{epoch}'))
+        torch.save(self.generator.state_dict(), os.path.join(self.checkpoint_dir, f'gen_{epoch}'))
+        if self.args.criterion=='kale':
+            torch.save({'log_partition':self.log_partition}, os.path.join(self.checkpoint_dir, f'log_partition_{epoch}' ))
 
-def make_log_dir(args):
+def make_log_dir(args, trainer_id):
     if args.with_sacred:
         log_dir = args.log_dir + '_' + args.log_name
     else:
@@ -283,6 +306,9 @@ def make_log_dir(args):
         os.mkdir(checkpoint_dir)
     if not os.path.isdir(samples_dir):
         os.mkdir(samples_dir)
+    with open(os.path.join(log_dir, 'params.json'), 'w', encoding='utf-8') as f:
+        json.dump(vars(args), f, indent=4)
+
     return log_dir,checkpoint_dir,samples_dir
 
 def assign_device(device):

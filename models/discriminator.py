@@ -10,7 +10,7 @@ from torch.nn.utils import spectral_norm
 
 class Discriminator(nn.Module):
     def __init__(self, nn_type='vanilla', **kwargs):
-        super(self).__init__()
+        super().__init__()
 
         self.nn_type = nn_type
 
@@ -37,21 +37,23 @@ class Discriminator(nn.Module):
                 # input is (nc) x 64 x 64
                 # nn.Conv2d(in_channels, out_channels, kernel_size, stride, padding, dilation...)
                 nn.Conv2d(nc, ndf, 4, 2, 1, bias=False),
-                nn.LeakyReLU(leak, inplace=True),
+                nn.LeakyReLU(leak, inplace=False),
                 # state size. (ndf) x 32 x 32
                 nn.Conv2d(ndf, ndf * 2, 4, 2, 1, bias=False),
                 nn.BatchNorm2d(ndf * 2),
-                nn.LeakyReLU(leak, inplace=True),
+                nn.LeakyReLU(leak, inplace=False),
                 # state size. (ndf*2) x 16 x 16
                 nn.Conv2d(ndf * 2, ndf * 4, 4, 2, 1, bias=False),
                 nn.BatchNorm2d(ndf * 4),
-                nn.LeakyReLU(leak, inplace=True),
+                nn.LeakyReLU(leak, inplace=False),
                 # state size. (ndf*4) x 8 x 8
                 nn.Conv2d(ndf * 4, ndf * 8, 4, 2, 1, bias=False),
                 nn.BatchNorm2d(ndf * 8),
-                nn.LeakyReLU(leak, inplace=True),
+                nn.LeakyReLU(leak, inplace=False),
                 # state size. (ndf*8) x 4 x 4
-                nn.Conv2d(ndf * 8, 1, 4, 1, 0, bias=False),
+                #nn.Conv2d(ndf * 8, 1, 4, 1, 0, bias=False),
+                # change documented at https://github.com/pytorch/examples/issues/486
+                nn.Conv2d(ndf * 8, 1, 2, 2, 0, bias=False),
                 nn.Sigmoid()
             )
 
@@ -123,7 +125,7 @@ class Discriminator(nn.Module):
 
     def forward(self, input):
         if self.nn_type in ['spectral_resnet']:
-            output =  self.main(input).view(-1, self.disc_size)
+            output = self.main(input).view(-1, self.disc_size)
         elif self.nn_type in ['vanilla', 'spectral_dcgan']:
             output = self.main(input)
 

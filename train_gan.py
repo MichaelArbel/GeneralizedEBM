@@ -12,7 +12,7 @@ from trainer_gan import Trainer
 
 def make_flags(args,config_file):
     if config_file:
-        config = yaml.load(open(config_file))
+        config = yaml.safe_load(open(config_file))
         dic = vars(args)
         all(map(dic.pop, config))
         dic.update(config)
@@ -80,16 +80,25 @@ parser.add_argument('--fid_samples', default = 50000, type= int,  help='gpu devi
 
 parser.add_argument('--sample_type', type= str,  help='types of posterior samples to draw')
 
+parser.add_argument('--train_which', type= str,  help='which models you actually want to train')
+
 
 
 args = parser.parse_args()
 args = make_flags(args,args.config)
-exp = Trainer(args)
+trainer = Trainer(args, load_inception=True)
+
+# check whether we want to load a pretrained model depending on the given parameters
+pt = ''
+if len(args.d_path) > 0:
+    pt += 'd'
+if len(args.g_path) > 0:
+    pt += 'g'
 
 if args.load_pre_trained:
-	exp.eval_pre_trained()
+	trainer.eval_pre_trained(evaluate=True)
 else:
-	exp.train()
+	trainer.train(which=args.train_which, pretrained=pt)
 #exp.compute_inception_stats()
 #test_acc = exp.test()
 print('Training completed!')
