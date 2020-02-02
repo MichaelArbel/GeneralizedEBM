@@ -4,8 +4,8 @@ import torch.nn.functional as F
 
 
 class Generator(nn.Module):
-    def __init__(self,nz=100,nn_type='dcgan',**kwargs):
-        super(Generator, self).__init__()
+    def __init__(self, nz=100, nn_type='dcgan', **kwargs):
+        super(self).__init__()
 
         self.nn_type = nn_type
 
@@ -49,7 +49,7 @@ class Generator(nn.Module):
                 nn.Tanh()
             )
 
-        if nn_type == 'spectral_dcgan':
+        elif nn_type == 'spectral_dcgan':
             # adapted from https://github.com/christiancosgrove/pytorch-spectral-normalization-gan
             # with spectral norm from pytorch
 
@@ -72,7 +72,7 @@ class Generator(nn.Module):
             )
 
 
-        if nn_type == 'spectral_resnet':
+        elif nn_type == 'spectral_resnet':
 
             # adapted from https://github.com/christiancosgrove/pytorch-spectral-normalization-gan
             # with spectral norm from pytorch
@@ -95,6 +95,9 @@ class Generator(nn.Module):
                 self.final,
                 nn.Tanh()
             )
+
+        else:
+            raise NotImplementedError()
 
 
     def forward(self, input):

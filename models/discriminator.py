@@ -96,6 +96,8 @@ class Discriminator(nn.Module):
             )
 
         elif nn_type == 'spectral_resnet':
+            # adapted from https://github.com/christiancosgrove/pytorch-spectral-normalization-gan
+            # with spectral norm from pytorch
 
             nc = 3
             self.disc_size = 128
@@ -113,6 +115,9 @@ class Discriminator(nn.Module):
                 nn.Flatten(),
                 spectral_norm(self.fc)
             )
+
+        else:
+            raise NotImplementedError()
             
 
 

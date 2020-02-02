@@ -15,7 +15,9 @@ import torch.backends.cudnn as cudnn
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
-import model, model_resnet, model_dcgan
+
+from models.generator import Generator
+from models.discriminator import Discriminator
 import losses
 
 import pdb
@@ -75,6 +77,7 @@ def get_fid_stats(dataset):
 	mu1, sigma1 = f['mu'][:], f['sigma'][:]
 	f.close()		
 	return mu1, sigma1
+
 def get_fid_stats_pytorch(dataset):
 	if dataset=='cifar10':
 		path = 'metrics/res/stats_pytorch/fid_stats_cifar10_train.npz'
@@ -107,6 +110,7 @@ def get_loss(args):
 # 	else:
 # 		return None
 
+# choose the optimizer
 def get_optimizer(args,params):
 	if args.optimizer == 'Adam':
 		optimizer = optim.Adam(params, lr=args.lr, weight_decay=args.weight_decay, betas = (args.beta_1,args.beta_2))
@@ -116,6 +120,7 @@ def get_optimizer(args,params):
 		raise NotImplementedError('optimizer {} not implemented'.format(args.optimizer))
 	return optimizer
 
+# schedule the learning
 def get_scheduler(args,optimizer):
 	if args.scheduler=='MultiStepLR':
 		if args.milestone is None:
@@ -127,103 +132,89 @@ def get_scheduler(args,optimizer):
 	elif args.scheduler=='ExponentialLR':
 		return optim.lr_scheduler.ExponentialLR(optimizer, gamma=args.scheduler_gamma)
 
+# return some sort of latent noise
 def get_latent(args,device):
 	if args.latent_noise=='gaussian':
-		return torch.distributions.MultivariateNormal(torch.zeros(args.Z_dim).to(device),torch.eye(args.Z_dim).to(device))
+		return torch.distributions.Normal(torch.zeros(args.Z_dim).to(device),1)
 	elif args.latent_noise=='uniform':
 		return torch.distributions.Uniform(torch.zeros(args.Z_dim).to(device),torch.ones(args.Z_dim).to(device))
 
 
+# get posterior samples using MLE information learned by the GAN
 def get_latent_samples(args, device, s_type, g=None, h=None, gamma=2e-2, kappa=4e-2, T=1000):
-    normal_gen = torch.distributions.normal.Normal(torch.zeros((args.b_size, args.Z_dim)).to(device),1)
+    normal_gen = torch.distributions.Normal(torch.zeros((args.b_size, args.Z_dim)).to(device),1)
     prior_z = normal_gen.sample()
 
     if s_type == 'none':
+        # don't sample from the posterior
         return prior_z
     else:
+        # we'll be doing some kind of monte carlo sampling using the learned MLE
         
+        # don't use batchnorm. maybe get rid of this later if ths function used correctly
         h.eval()
         g.eval()
 
         def U_potential(z, h, g):
             return 1/2 * torch.norm(z, dim=1) ** 2 + h(g(z))
 
+        # Zs are the samples
         Z = [prior_z]
 
         if s_type == 'lmc':
+            # langevin monte carlo
             V = [torch.zeros_like(Z[0])]
             C = np.exp(-kappa * gamma)
             D = np.sqrt(1 - np.exp(-2 * kappa * gamma))
             for t in range(T):
-
+                # reset computation graph
                 Z[t].detach_()
                 V[t].detach_()
-
                 Z_half = Z[t] + gamma / 2 * V[t]
                 Z_half.requires_grad_()
-                
+                # calculate potentials and derivatives
                 U = U_potential(Z_half, h, g)
                 U = torch.sum(U)
-
                 U.backward()
-                dUdZ = Z_half.grad.data.clone().detach()  
-
+                dUdZ = Z_half.grad.data.clone().detach()
+                # update values
                 V_half = V[t] - gamma / 2 * dUdZ
                 V_tilde = C * V_half + D * normal_gen.sample()
                 V.append(V_tilde - gamma / 2 * dUdZ)
                 Z.append(Z_half + gamma / 2 * V[t+1])
 
-        if s_type == 'mmc1':
+        if s_type.startsWith('mmc'):
+            # michael monte carlo
+            if s_type == 'mmc1':
+                C = 0
+            elif s_type == 'mmc2':
+                C = np.sqrt(2 * gamma)
             for t in range(T):
                 Z[t].requires_grad_()
-                
                 U = U_potential(Z[t], h, g)
                 U = torch.sum(U)
-
                 U.backward()
-                dUdZ = Z[t].grad.data.clone().detach()  
-
+                dUdZ = Z[t].grad.data.clone().detach()
+                Z_new = Z[t] - gamma * dUdZ
+                if s_type == 'mmc2':
+                    Z_new += C * normal_gen.sample()
                 Z.append(Z[t] - gamma * dUdZ)
-
                 Z[t+1].detach_()
-
-        if s_type == 'mmc2':
-            C = np.sqrt(2 * gamma)
-            for t in range(T):
-                Z[t].requires_grad_()
-                
-                U = U_potential(Z[t], h, g)
-                U = torch.sum(U)
-
-                U.backward()
-                dUdZ = Z[t].grad.data.clone().detach()  
-
-                Z.append(Z[t] - gamma * dUdZ + C * normal_gen.sample())
-
-                Z[t+1].detach_()
-
 
         h.train()
         g.train()
 
+        # we just want the last sample
         return Z[-1]
 
 
 
-
-def get_net(args, net_type,device):
-	if args.model=='resnet':
-		_model = model_resnet
-	elif args.model=='dcgan':
-		_model = model_dcgan
-	elif args.model=='sngan':
-		_model = model
-	else:
-		raise NotImplementedError()	
-	if net_type=='discriminator':
-		net = _model.Discriminator().to(device)
-	elif net_type =='generator':
-		net = _model.Generator(args.Z_dim).to(device)
+# initialize neural net corresponding to type
+def get_net(args, net_type, device):
+	if net_type == 'discriminator':
+		net = Discriminator(nn_type=args.dis_model).to(device)
+	elif net_type == 'generator':
+		net = Generator(nz=args.Z_dim, nn_type=args.gen_model).to(device)
 	return net
 	
 

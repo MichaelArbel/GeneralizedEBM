@@ -1,3 +1,5 @@
+# taken from https://github.com/mseitzer/pytorch-fid/blob/master/inception.py
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
