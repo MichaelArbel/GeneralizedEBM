@@ -75,14 +75,17 @@ class Trainer(object):
 		self.scheduler_g = get_scheduler(self.args, self.optim_g)
 		self.loss = get_loss(self.args)
 		self.noise_gen = get_latent(self.args,self.device)
-		self.fixed_z = Variable(self.noise_gen.sample([self.args.b_size]))
+		#self.fixed_z = Variable(self.noise_gen.sample([self.args.b_size]))
+
+		#self.penalty_d = get_penatly(self.args)
+
 		self.counter =0
 		self.g_loss = torch.tensor(0.)
 		self.d_loss = torch.tensor(0.)
 		path  = get_fid_stats_pytorch(self.args.dataset)
 		block_idx = InceptionV3.BLOCK_INDEX_BY_DIM[2048]
 
-		self.fid_model = InceptionV3([block_idx]).to(self.device)
+		# self.fid_model = InceptionV3([block_idx]).to(self.device)
 
 	def iteration(self,data,loss_type,train_mode='train'):
 		if train_mode=='train':
@@ -148,20 +151,23 @@ class Trainer(object):
 		self.discriminator = self.discriminator.to(self.device)	
 
 	def sample_images(self,epoch):
+		sample_types = self.args.sample_type.split(',')
+		for s in sample_types:
+			sample_z = get_latent_samples(self.args, self.device, s_type=s, g=self.generator, h=self.discriminator)
+			samples = self.generator(sample_z).cpu().detach().numpy()[:64]
 
-		samples = self.generator(self.fixed_z).cpu().detach().numpy()[:64]
-		fig = plt.figure(figsize=(8, 8))
-		gs = gridspec.GridSpec(8, 8)
-		gs.update(wspace=0.05, hspace=0.05)
-		for i, sample in enumerate(samples):
-			ax = plt.subplot(gs[i])
-			plt.axis('off')
-			ax.set_xticklabels([])
-			ax.set_yticklabels([])
-			ax.set_aspect('equal')
-			plt.imshow(sample.transpose((1,2,0)) * 0.5 + 0.5)
-		plt.savefig(self.samples_dir+'/{}.png'.format(str(epoch).zfill(3)), bbox_inches='tight')
-		plt.close(fig)
+			fig = plt.figure(figsize=(8, 8))
+			gs = gridspec.GridSpec(8, 8)
+			gs.update(wspace=0.05, hspace=0.05)
+			for i, sample in enumerate(samples):
+				ax = plt.subplot(gs[i])
+				plt.axis('off')
+				ax.set_xticklabels([])
+				ax.set_yticklabels([])
+				ax.set_aspect('equal')
+				plt.imshow(sample.transpose((1,2,0)) * 0.5 + 0.5)
+			plt.savefig(self.samples_dir+'/{}-{}.png'.format(str(epoch).zfill(3),s), bbox_inches='tight')
+			plt.close(fig)
 
 	def evaluate(self,epoch):
 		if np.mod(epoch,10)==0:
@@ -178,7 +184,7 @@ class Trainer(object):
 			self.sample_images(epoch)
 			self.save_checkpoint(epoch)
 		self.sample_images(0)
-		self.evaluate(0)
+		# self.evaluate(0)
 
 	def acc_stats(self):
 		n_batches = int(self.args.fid_samples/self.args.b_size)+1
@@ -274,6 +280,8 @@ def assign_device(device):
 		device = 'cpu'
 	return device
 
+
+# unused
 def compute_fid(mu1, sigma1, mu2, sigma2):
 	# calculate activations
 	# calculate sum squared difference between means
