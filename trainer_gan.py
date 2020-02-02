@@ -150,7 +150,8 @@ class Trainer(object):
 		self.discriminator.load_state_dict(d_model)
 		self.discriminator = self.discriminator.to(self.device)	
 
-	def sample_images(self,epoch):
+	# samples 64 images according to all types in the the sample_type argument, saves them
+	def sample_images(self, epoch):
 		sample_types = self.args.sample_type.split(',')
 		for s in sample_types:
 			sample_z = get_latent_samples(self.args, self.device, s_type=s, g=self.generator, h=self.discriminator)

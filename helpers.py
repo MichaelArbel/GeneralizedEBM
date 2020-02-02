@@ -138,7 +138,7 @@ def get_latent_samples(args, device, s_type, g=None, h=None, gamma=2e-2, kappa=4
     normal_gen = torch.distributions.normal.Normal(torch.zeros((args.b_size, args.Z_dim)).to(device),1)
     prior_z = normal_gen.sample()
 
-    if s_type == 'gaussian':
+    if s_type == 'none':
         return prior_z
     else:
         
@@ -207,85 +207,6 @@ def get_latent_samples(args, device, s_type, g=None, h=None, gamma=2e-2, kappa=4
         g.train()
 
         return Z[-1]
-
-
-
-def lmc(args, device, prior_z, g, h, gamma=1e-3, kappa=1):
-    T = 400
-
-    Z = [prior_z]
-    V = [torch.zeros_like(Z[0])]
-
-    normal_gen = torch.distributions.MultivariateNormal(torch.ones(args.Z_dim).to(device),torch.eye(args.Z_dim).to(device))
-
-    h.eval()
-    g.eval()
-
-    def U_potential(z, h, g):
-        return 1/2 * torch.norm(z, dim=1) ** 2 + h(g(z))
-
-
-    C = np.exp(-kappa * gamma)
-    D = np.sqrt(1 - np.exp(-2 * kappa * gamma))
-    for t in range(T):
-
-        Z[t].detach_()
-        V[t].detach_()
-
-        Z_half = Z[t] + gamma / 2 * V[t]
-        Z_half.requires_grad_()
-        
-        U = U_potential(Z_half, h, g)
-        # dUdZ = torch.zeros_like(Z[0])
-        U = torch.sum(U)
-
-        U.backward()
-        dUdZ = Z_half.grad.data.clone().detach()  
-
-        V_half = V[t] - gamma / 2 * dUdZ
-        V_tilde = C * V_half + D * normal_gen.sample([args.b_size])
-        V.append(V_tilde - gamma / 2 * dUdZ)
-        Z.append(Z_half + gamma / 2 * V[t+1])
-
-    h.train()
-    g.train()
-
-    return Z[-1]
-
-def mmc(args, device, prior_z, g, h, gamma=1e-3, kappa=1):
-    T = 600
-
-    Z = [prior_z]
-
-    normal_gen = torch.distributions.MultivariateNormal(torch.ones(args.Z_dim).to(device),torch.eye(args.Z_dim).to(device))
-
-    h.eval()
-    g.eval()
-
-    def U_potential(z, h, g):
-        return 1/2 * torch.norm(z, dim=1) ** 2 + h(g(z))
-
-
-    C = np.exp(-kappa * gamma)
-    D = np.sqrt(1 - np.exp(-2 * kappa * gamma))
-    for t in range(T):
-        Z[t].requires_grad_()
-        
-        U = U_potential(Z[t], h, g)
-        # dUdZ = torch.zeros_like(Z[0])
-        U = torch.sum(U)
-
-        U.backward()
-        dUdZ = Z[t].grad.data.clone().detach()  
-
-        Z.append(Z[t] - gamma * dUdZ)
-
-        Z[t+1].detach_()
-
-    h.train()
-    g.train()
-
-    return Z[-1]
 
 
 
