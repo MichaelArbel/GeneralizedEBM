@@ -73,7 +73,7 @@ parser.add_argument('--scheduler_gamma',  default =0.99 ,type= float ,  help='gp
 parser.add_argument('--config',  default ='' ,type= str ,  help='gpu device')
 parser.add_argument('--with_sacred',  default =False ,type= bool ,  help='gpu device')
 
-parser.add_argument('--fid_samples', default = 1000, type= int,  help='gpu device')
+parser.add_argument('--fid_samples', default = 50000, type= int,  help='gpu device')
 
 
 

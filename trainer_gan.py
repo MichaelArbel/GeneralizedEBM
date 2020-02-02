@@ -58,6 +58,8 @@ class Trainer(object):
 
 	def build_model(self):		
 		self.train_loader, self.test_loader = get_data_loader(self.args)
+		
+
 		self.discriminator = get_net(self.args, 'discriminator', self.device)
 		trainable_params = list(filter(lambda p: p.requires_grad, self.discriminator.parameters()))
 		self.generator = get_net(self.args, 'generator', self.device)
@@ -74,24 +76,10 @@ class Trainer(object):
 		self.loss = get_loss(self.args)
 		self.noise_gen = get_latent(self.args,self.device)
 		self.fixed_z = Variable(self.noise_gen.sample([self.args.b_size]))
-		#self.penalty_d = get_penatly(self.args)
 		self.counter =0
 		self.g_loss = torch.tensor(0.)
 		self.d_loss = torch.tensor(0.)
-		#self.fid_model = InceptionV3(include_top=False, pooling='avg', input_shape=(299,299,3))
-		#self.fid_model = torch.hub.load('pytorch/vision:v0.5.0', 'inception_v3', pretrained=True)
-		#self.fid_model.eval()
 		path  = get_fid_stats_pytorch(self.args.dataset)
-		#self.is_fid_model = is_fid_pytorch.ScoreModel(mode=2, stats_file=path, cuda=True, device=self.device)
-
-		#self.inception_fid = new_fid.PartialInceptionNetwork(transform_input=True)
-		#inception_network = PartialInceptionNetwork()
-		#self.inception_fid = self.inception_fid.to(self.device)
-		#self.inception_fid.eval()
-		#self.FID_scorer = fid_keras.FrechetInceptionDistance(None,image_range=(-1,1))
-
-		#self._inception_v3 = InceptionV3(include_top=False, pooling='avg')
-		#self._pool_size = self._inception_v3.output_shape[-1]
 		block_idx = InceptionV3.BLOCK_INDEX_BY_DIM[2048]
 
 		self.fid_model = InceptionV3([block_idx]).to(self.device)
@@ -126,31 +114,38 @@ class Trainer(object):
 		for batch_idx, (data, target) in enumerate(self.train_loader):
 			data = Variable(data.to(self.device))
 			self.counter += 1
-			if np.mod(self.counter, n_iter_d):
+			if np.mod(self.counter, n_iter_d)==0:
 				self.g_loss = self.iteration(data,'generator')
 			else:
 				self.d_loss = self.iteration(data,'discriminator')
 			if batch_idx % 100 == 0:
 				print('generator loss: '+ str(self.g_loss.item())+', critic loss: ' +  str(self.d_loss.item()))
 
+	def train_discriminator(self,epoch):
+		for batch_idx, (data, target) in enumerate(self.train_loader):
+			data = Variable(data.to(self.device))
+			self.d_loss = self.iteration(data,'discriminator')
+			if batch_idx % 100 == 0:
+				print(' critic loss: ' +  str(self.d_loss.item()))
+
 	def train(self):
 		for epoch in range(self.args.total_epochs):
 			print('Epoch: ' + str(epoch))
-			self.evaluate(epoch)
 			self.train_epoch(epoch)
 			self.evaluate(epoch)
 			self.sample_images(epoch)
 			self.save_checkpoint(epoch)
 
-	def load(self):
-
-		d_model = torch.load(self.args.d_path +'.pth')#get_net(self.args, 'discriminator', self.device)
-		g_model = torch.load(self.args.g_path +'.pth') #get_net(self.args, 'generator', self.device)
+	def load_generator(self):
+		g_model = torch.load(self.args.g_path +'.pth')
 		self.noise_gen = get_latent(self.args,self.device)
-		self.discriminator.load_state_dict(d_model)
 		self.generator.load_state_dict(g_model)
-		self.discriminator = self.discriminator.to(self.device)
 		self.generator = self.generator.to(self.device)
+	
+	def load_discriminator(self):
+		d_model = torch.load(self.args.d_path +'.pth')
+		self.discriminator.load_state_dict(d_model)
+		self.discriminator = self.discriminator.to(self.device)	
 
 	def sample_images(self,epoch):
 
@@ -169,13 +164,19 @@ class Trainer(object):
 		plt.close(fig)
 
 	def evaluate(self,epoch):
-		
 		if np.mod(epoch,10)==0:
 			Kale,images = self.acc_stats()
 			fid = self.compute_fid(images)
 			print('Kale ' +  str(Kale.item()) + ', FID: '+ str(fid))
 	def eval_pre_trained(self):
-		self.load()
+		self.load_generator()
+		self.load_discriminator()
+		for epoch in range(self.args.total_epochs):
+			print('Epoch: ' + str(epoch))
+			#self.train_discriminator(epoch)
+			self.evaluate(epoch)
+			self.sample_images(epoch)
+			self.save_checkpoint(epoch)
 		self.sample_images(0)
 		self.evaluate(0)
 

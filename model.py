@@ -14,6 +14,7 @@ class Generator(nn.Module):
         self.z_dim = z_dim
 
         self.model = nn.Sequential(
+            #nn.Linear(z_dim,)
             nn.ConvTranspose2d(z_dim, 512, 4, stride=1),
             nn.BatchNorm2d(512),
             nn.ReLU(),

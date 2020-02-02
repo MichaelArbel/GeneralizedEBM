@@ -23,6 +23,6 @@ def logistic(true_data,fake_data,loss_type):
 
 def kale(true_data,fake_data,loss_type):
 	if loss_type=='discriminator':
-		return  true_data.mean() + torch.exp(-fake_data).mean()  
+		return  true_data.mean() + torch.exp(-fake_data).mean()  - 1
 	else:
-		return -true_data.mean() - torch.exp(-fake_data).mean()  
+		return -true_data.mean() - torch.exp(-fake_data).mean()  + 1
