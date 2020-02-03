@@ -62,7 +62,7 @@ class Trainer(object):
         self.discriminator = hp.get_net(self.args, 'discriminator', self.device)
         dis_params = list(filter(lambda p: p.requires_grad, self.discriminator.parameters()))
         if self.args.criterion=='kale':
-            self.log_partition = nn.Parameter(torch.tensor(0.).to(self.device), requires_grad=True)
+            self.log_partition = nn.Parameter(torch.zeros(1).to(self.device), requires_grad=True)
             dis_params.append(self.log_partition)
         else:
             self.log_partition = 0.
@@ -121,8 +121,8 @@ class Trainer(object):
         true_results = self.discriminator(data)
         fake_results = self.discriminator(gen_data)
         if self.args.criterion=='kale':
-            true_results += self.log_partition
-            fake_results += self.log_partition
+            true_results = true_results + self.log_partition
+            fake_results = true_results + self.log_partition
         # calculate loss and propagate
         loss = self.loss(true_results,fake_results,net_type) 
         if train_mode:
@@ -233,7 +233,7 @@ class Trainer(object):
                     gen_data = self.generator(Z)
                     fake_results = self.discriminator(gen_data)
                     if self.args.criterion=='kale':
-                        fake_results += self.log_partition
+                        fake_results = fake_results + self.log_partition
                     mean_gen += -torch.exp(-fake_results).sum()
 
                     lengthstuff= min(self.args.fid_samples-m,gen_data.shape[0])
@@ -247,7 +247,7 @@ class Trainer(object):
                 # get real data and run through discriminator
                 data = data.to(self.device).clone().detach()
                 true_data = self.discriminator(data)
-                true_data += self.log_partition
+                true_data = true_data + self.log_partition
                 mean_data += -true_data.sum()
                 m += true_data.size(0)
             mean_data /= m

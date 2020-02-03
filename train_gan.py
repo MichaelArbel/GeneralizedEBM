@@ -25,7 +25,7 @@ parser.add_argument('--log_name', default = '',type= str,  help='log directory f
 parser.add_argument('--log_dir', default = '',type= str,  help='log directory for summaries and checkpoints')
 parser.add_argument('--d_path', default = '',type= str,  help='log directory for summaries and checkpoints')
 parser.add_argument('--g_path', default = '',type= str,  help='log directory for summaries and checkpoints')
-parser.add_argument('--load_pre_trained', action = 'store_true', help='log directory for summaries and checkpoints')
+parser.add_argument('--eval_pre_trained', action = 'store_true', help='log directory for summaries and checkpoints')
 
 
 parser.add_argument('--dataset', default = 'cifar10',type= str,  help='log directory for summaries and checkpoints')
@@ -86,7 +86,7 @@ parser.add_argument('--train_which', type= str,  help='which models you actually
 
 args = parser.parse_args()
 args = make_flags(args,args.config)
-trainer = Trainer(args, load_inception=True)
+trainer = Trainer(args, load_inception=False)
 
 # check whether we want to load a pretrained model depending on the given parameters
 pt = ''
@@ -95,7 +95,7 @@ if len(args.d_path) > 0:
 if len(args.g_path) > 0:
     pt += 'g'
 
-if args.load_pre_trained:
+if args.eval_pre_trained:
 	trainer.eval_pre_trained(evaluate=True)
 else:
 	trainer.train(which=args.train_which, pretrained=pt)

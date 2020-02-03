@@ -12,14 +12,14 @@ optimizer: Adam
 
 
 # For built-in data augmentation
-criterion : 'logistic'
+criterion : 'kale'
 
 
 d_path : 'weights/dcgan/netD_epoch_199'
 g_path : 'weights/dcgan/netG_epoch_199'
 
 # just gonna sample here
-load_pre_trained : True
+eval_pre_trained : False
 Z_dim : 100
 
 sample_type : 'none,lmc'
