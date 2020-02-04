@@ -211,6 +211,7 @@ class Trainer(object):
 
 	def train_discriminator(self,epoch):
 		for batch_idx, (X,y) in enumerate(self.train_loader):
+			
 			X,y = X.to(self.device), y.to(self.device)
 			if self.args.problem=='unconditional':
 				y=None
@@ -280,7 +281,7 @@ class Trainer(object):
 			self.counter_g = self.counter_g+1
 
 	def get_best_dic(self,epoch,best_out):
-		out = self.evaluate(epoch,20)
+		out = self.evaluate(epoch,1)
 		if best_out is None:
 			best_out = deepcopy(out)
 
@@ -318,8 +319,8 @@ class Trainer(object):
 	def train(self):
 		best_out = None
 		self.counter_g = 0
-		for epoch in range(self.args.total_epochs):
-			
+		#for epoch in range(self.args.total_epochs):
+		for epoch in range(46):
 			print('Training the base...')
 			print('Epoch: ' + str(epoch))
 			self.train_generator(epoch)
@@ -341,7 +342,7 @@ class Trainer(object):
 
 	# def train(self):
 	# 	best_out = None
-	# 	self.args.g_path = '/nfs/gatsbystor/michaela/projects/kale/exp/uci_best/checkpoints/gen_227'
+	# 	self.args.g_path = '/nfs/gatsbystor/michaela/projects/kale/exp/uci_best/minibone/checkpoints/gen_137'
 	# 	self.load_generator()
 	# 	self.get_best_dic(0,best_out)
 	# 	print('Done training the base, learning MLE')
@@ -352,7 +353,9 @@ class Trainer(object):
 	# 			best_out = self.get_best_dic(epoch,best_out)
 	# 		print(best_out)
 	# 	self.save_checkpoint(epoch)
-	# 	#out = self.evaluate(epoch,10)
+	# 	out = self.evaluate(epoch,20)
+	# 	print( 'last eval:')
+	# 	print(out)
 	# 	return best_out
 
 

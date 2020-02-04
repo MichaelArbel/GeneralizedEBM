@@ -1,4 +1,4 @@
-b_size: 100
+b_size: 1024
 dataset: cifar10
 
 total_epochs: 1000
@@ -9,14 +9,14 @@ optimizer: Adam
 criterion : 'kale'
 
 #data_name : 'redwine' # 'whitewine', 'parkinsons', 'gas', 'power', 'hepmass', 'minibone'
-#sdata_name : 'parkinsons'
+#data_name : 'minibone'
 problem : 'unconditional'
 penalty_lambda : 0.1
 #penalty_lambda : 0.09
 penalty_type: 'gradients_l2'
 scheduler : 'MultiStepLR'
-Z_factor : 100
+Z_factor : 1
 generator : 'made'
 no_progress_bar : True
-penalty_g_lambda : 0.000001
+penalty_g_lambda : 0.0001
 lr : 0.00001
