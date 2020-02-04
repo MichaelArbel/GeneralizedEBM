@@ -28,8 +28,9 @@ parser.add_argument('--d_path', default='', type= str, help='path to discriminat
 parser.add_argument('--g_path', default='', type= str, help='path to generator checkpoint')
 
 # control parameters
+parser.add_argument('--mode', type=str, default='train', help='train, eval_pre_trained, etc')
 parser.add_argument('--train_which', type=str, help='which models to train')
-parser.add_argument('--eval_pre_trained', action='store_true', help='evaluate pre-trained models only')
+
 
 # data parameters
 parser.add_argument('--dataset', default = 'cifar10',type= str,  help='log directory for summaries and checkpoints')

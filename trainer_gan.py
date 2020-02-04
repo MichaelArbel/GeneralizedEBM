@@ -19,6 +19,7 @@ import time
 import pprint
 import socket
 import json
+import pickle as pkl
 
 import pdb
 
@@ -53,7 +54,19 @@ class Trainer(object):
         pp.pprint(vars(args))
         print('==> Building model..')
         self.with_fid = args.with_fid
+        self.sample_types = self.args.sample_type.split(',')
         self.build_model()
+
+        self.mode = args.mode
+
+    def main(self):
+        print(f'==> Mode: {self.args.mode}')
+        if self.args.mode == 'train':
+            self.train()
+        elif self.args.mode == 'eval':
+            self.eval_pre_trained()
+        elif self.args.mode == 'images':
+            self.get_quick_images()
         
 
     # model building functions
@@ -79,19 +92,21 @@ class Trainer(object):
                 dis_params.append(self.log_partition)
             else:
                 self.log_partition = 0.
-        # optimizers
-        self.optim_d = hp.get_optimizer(self.args, dis_params)
-        self.optim_g = hp.get_optimizer(self.args, self.generator.parameters())
-        # schedulers
-        self.scheduler_d = hp.get_scheduler(self.args, self.optim_d)
-        self.scheduler_g = hp.get_scheduler(self.args, self.optim_g)
 
-        self.loss = hp.get_loss(self.args)
-        self.noise_gen = hp.get_latent(self.args,self.device)
+        if self.mode == 'train':
+            # optimizers
+            self.optim_d = hp.get_optimizer(self.args, dis_params)
+            self.optim_g = hp.get_optimizer(self.args, self.generator.parameters())
+            # schedulers
+            self.scheduler_d = hp.get_scheduler(self.args, self.optim_d)
+            self.scheduler_g = hp.get_scheduler(self.args, self.optim_g)
 
-        self.counter = 0
-        self.g_loss = torch.tensor(0.)
-        self.d_loss = torch.tensor(0.)
+            self.loss = hp.get_loss(self.args)
+            self.noise_gen = hp.get_latent(self.args,self.device)
+
+            self.counter = 0
+            self.g_loss = torch.tensor(0.)
+            self.d_loss = torch.tensor(0.)
 
         if self.with_fid:
             print('==> Loading inception network...')
@@ -116,8 +131,8 @@ class Trainer(object):
     # model training functions
 
     # take a step, and maybe train either the discriminator or generator
-    def iteration(self, data, net_type, train_mode=True):
-        if train_mode:
+    def iteration(self, data, net_type):
+        if self.mode == 'train':
             if net_type=='discriminator':           
                 optimizer = self.optim_d
                 self.discriminator.train()
@@ -140,7 +155,7 @@ class Trainer(object):
         loss = self.loss(true_results, fake_results, net_type) 
         penalty = self.args.penalty_lambda * self.penalty_d(data, fake_data)
         total_loss = loss + penalty
-        if train_mode:
+        if self.mode == 'train':
             total_loss.backward()
             optimizer.step()
         return total_loss
@@ -211,10 +226,10 @@ class Trainer(object):
             self.counter += 1
             # discriminator takes n_iter_d steps of learning for each generator step
             if np.mod(self.counter, n_iter_d) == 0:
-                self.g_loss = self.iteration(data, net_type='generator', train_mode=True)
+                self.g_loss = self.iteration(data, net_type='generator')
                 accum_loss_g += self.g_loss.item()
             else:
-                self.d_loss = self.iteration(data, net_type='discriminator', train_mode=True)
+                self.d_loss = self.iteration(data, net_type='discriminator')
                 accum_loss_d += self.d_loss.item()
             if batch_idx % 100 == 99:
                 print(f'generator loss: {accum_loss_g/100}, critic loss: {accum_loss_d/100}')
@@ -226,7 +241,7 @@ class Trainer(object):
         accum_loss = 0
         for batch_idx, (data, target) in enumerate(self.train_loader):
             data = data.to(self.device).clone().detach()
-            self.d_loss = self.iteration(data, net_type='discriminator', train_mode=True)
+            self.d_loss = self.iteration(data, net_type='discriminator')
             accum_loss += self.d_loss.item()
             if batch_idx % 100 == 99:
                 print(f' critic loss: {accum_loss/100}')
@@ -250,27 +265,56 @@ class Trainer(object):
                 self.train_discriminator(epoch)
             if np.mod(epoch, 10) == 0:
                 self.evaluate(epoch)
-                self.sample_images(self.args.sample_type, epoch)
+                self.sample_images(epoch)
             if np.mod(epoch, 2) == 0:
                 self.save_checkpoint(epoch)
 
     # model evaluation functions
 
-    # fast, easy, model evaluation function to generate some images real fast, and compute scores
+    # fast, easy, model evaluation functions to generate some images real fast, and compute scores
     # evaluate a pretrained model. load generator and discriminator from a path
-    def eval_pre_trained(self):
+    def eval_pre_trained(self, num_evaluations=1, save_Z=True):
         print('==> Evaluating pre-trained model...')
         self.load_generator()
         self.load_discriminator()
-        self.sample_images(sample_types=self.args.sample_type, epoch=0)
-        self.evaluate(epoch=0)
+        kales = {}
+        fids = {}
+        for s in self.sample_types:
+            kales[s] = []
+            fids[s] = []
+        for n in num_evaluations:
+            kale, fid, _ = self.evaluate(eval_id=f'eval_{n}')
+            for s in self.sample_types:
+                kales[s].append(kale[s])
+                fids[s].append(fid[s])
+        
+        with open(os.path.join(self.log_dir, 'kales_and_fids.json'), 'w') as f:
+            json.dump([kales, fids], f, indent=4)
+
+        for s in self.sample_types:
+            mean = np.array(kales[s]).mean()
+            std = np.array(kales[s]).std()
+            print(f'KALE mean: {mean}, std: {std}')
+
+            mean = np.array(fids[s]).mean()
+            std = np.array(fids[s]).std()
+            print(f'FID mean: {mean}, std: {std}')
+
+
+    def get_quick_images(self):
+        print('==> Generating images from pre-trained model...')
+        self.load_generator()
+        self.load_discriminator()
+        self.sample_images(epoch=0)
 
     # samples 64 images according to all types in the the sample_type argument, saves them
-    def sample_images(self, sample_types, epoch=0):
-        sample_types = sample_types.split(',')
-        for s in sample_types:
-            sample_z = hp.get_latent_samples(self.args, self.device, s_type=s, g=self.generator, h=self.discriminator)
-            samples = self.generator(sample_z).cpu().detach().numpy()[:64]
+    def sample_images(self, epoch=0):
+        normal_gen = torch.distributions.Normal(torch.zeros((self.args.b_size, self.args.Z_dim)).to(self.device),1)
+        prior_z = normal_gen.sample()
+        for s in self.sample_types:
+            print(f'==> Producing samples of type {s}...')
+            sample_z = hp.get_latent_samples(prior_z=prior_z, s_type=s, g=self.generator, h=self.discriminator)
+            samples = self.generator(sample_z).cpu().numpy()[:64]
 
             fig = plt.figure(figsize=(8, 8))
             gs = gridspec.GridSpec(8, 8)
@@ -286,53 +330,121 @@ class Trainer(object):
             plt.close(fig)
 
     # evaluate a particular epoch, but only every 10
-    def evaluate(self, epoch=0):
-        KALE, images = self.acc_stats()
-        fid = 'N/A'
-        if self.with_fid:
-            fid = self.compute_fid(images)
-        print(f'KALE: {KALE.item()}, FID: {fid}')
+    def evaluate(self, eval_id=0):
+        KALE, mean_fake, images, Zs = self.acc_stats(save_Z_id=eval_id)
+        for s in self.sample_types:
+            fid = 'N/C'
+            if self.with_fid:
+                fid = self.compute_fid(images[s])
+            if s == 'none':
+                print(f'KALE: {KALE[s].item()} (fake: {mean_fake[s].item()}, FID: {fid}')
+            else:
+                print(f'{s}-KALE: {KALE[s].item()} (fake: {mean_fake[s].item()}, FID: {fid}')
+        return KALE, fid, Zs
+
 
     # calculate KALE and generated images
     def acc_stats(self):
-        n_batches = int(self.args.fid_samples/self.args.b_size)+1
+        bb_size = 1000
+        n_batches = int(self.args.fid_samples / bb_size) + 1
 
-        # mean losses for generated and real data
-        mean_gen = 0.
-        mean_data = 0.
-        with torch.no_grad():
+        # contribution of fake generated data
+        mean_fake = {}
+        images = {}
+        Zs = {}
+
+        if self.mode == 'train':
+            s_types = ['none']
+        else:
+            s_types = self.sample_types
+        
+        for s in s_types:
+            # multiple batches, otherwise get memory issues
+            print(f'==> Generating posterior samples, type: {s}')
             m = 0
-            for _ in range(n_batches):
+            normal_gen = torch.distributions.Normal(torch.zeros((bb_size, self.args.Z_dim)).to(self.device),1)
+            for b in range(n_batches):
+                print('\rStarting batch {b}/{n_batches}')
                 if m < self.args.fid_samples:
-                    # create fake data and run through discriminator
-                    Z = self.noise_gen.sample([self.args.b_size])
-                    fake_data = self.generator(Z)
-                    #fake_data_mle_Z = hp.get_latent_samples(self.args, self.device, s_type='lmc', g=self.generator, h=self.discriminator)
-                    #fake_data = self.generator(fake_data_mle_Z)
-                    fake_results = self.discriminator(fake_data)
-                    if self.args.criterion == 'kale':
-                        fake_results = fake_results + self.log_partition
-                    mean_gen += -torch.exp(-fake_results).sum()
+                    prior_z = normal_gen.sample()
+                    fake_data_mle_Z = hp.get_latent_samples(
+                        prior_z=prior_z, s_type=s, 
+                        g=self.generator, h=self.discriminator, sampler=normal_gen
+                    )
+                    with torch.no_grad():
+                        # could be small (because it's the last batch)
+                        bl = min(self.args.fid_samples - m, bb_size)
 
-                    lengthstuff= min(self.args.fid_samples-m,fake_data.shape[0])
-                    if m == 0:
-                        images = torch.zeros([self.args.fid_samples]+list(fake_data.shape[1:]))
-                    images[m:m+lengthstuff,:]=fake_data[:lengthstuff,:].detach().cpu()
-                    m += fake_data.size(0)
-            mean_gen /= m
+                        fake_data = self.generator(fake_data_mle_Z)
+                        # save images to cpu
+                        if m == 0:
+                            images[s] = torch.zeros([self.args.fid_samples]+list(fake_data.shape[1:]))
+                            Zs[s] = torch.zeros([self.args.fid_samples]+list(fake_data_mle_Z.shape[1:]))
+                        Zs[s][m:m+bl] = fake_data_mle_Z.cpu()
+                        images[s][m:m+bl] = fake_data.detach().cpu()
+                        m += fake_data.size(0)
+
+            fake_results = self.discriminator(fake_data) + self.log_partition
+            mean_fake[s] = -torch.exp(-fake_results)
+            mean_fake[s] /= m
+            
+        # contribution of real data
+        with torch.no_grad:
             m = 0
+            mean_real = 0
             for batch_idx, (data, target) in enumerate(self.test_loader):
                 # get real data and run through discriminator
-                data = data.to(self.device).clone().detach()
-                real_results = self.discriminator(data)
-                real_results = real_results + self.log_partition
-                mean_data += -real_results.sum()
+                data = data.to(self.device).detach()
+                real_results = self.discriminator(data) + self.log_partition
+                mean_real += -real_results.sum()
                 m += real_results.size(0)
-            mean_data /= m
-            KALE = mean_data + mean_gen + 1
-            fake_data_mean = (fake_results - self.log_partition).mean()
-            real_data_mean = (real_results - self.log_partition).mean()
-            print(f'real mean: {real_data_mean}, fake mean: {fake_data_mean}')
+            mean_real /= m
+
+        KALE = {}
+        print(f'real: {mean_real} | lp: {self.log_partition}')
+        for s in self.sample_types:
+            KALE[s] = mean_real + mean_fake[s] + 1
+
+        return KALE, mean_fake, images, Zs
+
+
+        # n_batches = int(self.args.fid_samples/self.args.b_size)+1
+        # with torch.no_grad():
+        #     m = 0
+        #     # for _ in range(n_batches):
+        #     #     if m < self.args.fid_samples:
+        #     #         # create fake data and run through discriminator
+        #     #         Z = self.noise_gen.sample([self.args.b_size])
+        #     #         fake_data = self.generator(Z)
+        #     #         # fake_data_mle_Z = hp.get_latent_samples(self.args, self.device, s_type='lmc', g=self.generator, h=self.discriminator)
+        #     #         # fake_data = self.generator(fake_data_mle_Z)
+        #     #         # fake_results = self.discriminator(fake_data)
+        #     #         if self.args.criterion == 'kale':
+        #     #             fake_results = fake_results + self.log_partition
+        #     #         mean_gen += -torch.exp(-fake_results).sum()
+
+        #     #         lengthstuff= min(self.args.fid_samples-m,fake_data.shape[0])
+        #     #         if m == 0:
+        #     #             images = torch.zeros([self.args.fid_samples]+list(fake_data.shape[1:]))
+        #     #         images[m:m+lengthstuff,:]=fake_data[:lengthstuff,:].detach().cpu()
+        #     #         m += fake_data.size(0)
+        #     # mean_gen /= m
+        #     m = 0
+        #     for batch_idx, (data, target) in enumerate(self.test_loader):
+        #         # get real data and run through discriminator
+        #         data = data.to(self.device).detach()
+        #         real_results = self.discriminator(data) + self.log_partition
+        #         mean_data += -real_results.sum()
+        #         m += real_results.size(0)
+        #     mean_data /= m
+        #     KALE = mean_data + mean_gen + 1
+            
+        #     real_data_mean = (real_results - self.log_partition).mean()
+        #     print(f'real mean: {real_data_mean}')
+        #     for s in sample_types:
+        #         fake_data_mean = (fake_results - self.log_partition).mean()
+        #         print(f'fake-{s} mean: {fake_data_mean}')
+                
             # pdb.set_trace()
             # ...
 
@@ -380,6 +492,8 @@ class Trainer(object):
         if self.args.train_which != 'discriminator':
             torch.save(self.generator.state_dict(), os.path.join(self.checkpoint_dir, f'g_{epoch}.pth'))
         
+
+
 
 # helper functions
 
