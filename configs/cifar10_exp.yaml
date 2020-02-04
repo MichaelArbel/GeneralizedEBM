@@ -1,35 +1,30 @@
 b_size: 128
 dataset: cifar10
 
-total_epochs: 100
+total_epochs: 21
+
+gen_model : 'dcgan'
+dis_model : 'vanilla'
 
 log_dir : 'logs'
 log_name : 'test'
 optimizer: Adam
 
 
-
-
 # For built-in data augmentation
-criterion : 'logistic'
+criterion : 'kale'
 
 
 d_path : 'weights/dcgan/netD_epoch_199'
-
 g_path : 'weights/dcgan/netG_epoch_199'
 
-load_pre_trained : True
+# just gonna sample here
+eval_pre_trained : False
 Z_dim : 100
-model : 'dcgan'
-# For data augmentation in classifier
 
+sample_type : 'none,lmc'
 
-
-
-sample_type : 'lmc,mmc1'
-
-
-
+train_which : 'd'
 
 
 

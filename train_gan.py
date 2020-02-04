@@ -12,7 +12,7 @@ from trainer_gan import Trainer
 
 def make_flags(args,config_file):
     if config_file:
-        config = yaml.load(open(config_file))
+        config = yaml.safe_load(open(config_file))
         dic = vars(args)
         all(map(dic.pop, config))
         dic.update(config)
@@ -25,7 +25,7 @@ parser.add_argument('--log_name', default = '',type= str,  help='log directory f
 parser.add_argument('--log_dir', default = '',type= str,  help='log directory for summaries and checkpoints')
 parser.add_argument('--d_path', default = '',type= str,  help='log directory for summaries and checkpoints')
 parser.add_argument('--g_path', default = '',type= str,  help='log directory for summaries and checkpoints')
-parser.add_argument('--load_pre_trained', action = 'store_true', help='log directory for summaries and checkpoints')
+parser.add_argument('--eval_pre_trained', action = 'store_true', help='log directory for summaries and checkpoints')
 
 
 parser.add_argument('--dataset', default = 'cifar10',type= str,  help='log directory for summaries and checkpoints')
@@ -42,7 +42,9 @@ parser.add_argument('--dtype',  default = '32' ,type= str ,   help='gpu device')
 
 parser.add_argument('--total_epochs', default=100, type=int, help='total number of epochs')
 
-parser.add_argument('--model', default = 'sngan' ,type= str,  help='gpu device')
+parser.add_argument('--gen_model', default = 'dcgan' ,type= str,  help='check models/generator.py')
+parser.add_argument('--dis_model', default = 'vanilla' ,type= str,  help='check models/disciminator.py')
+
 parser.add_argument('--criterion',  default ='kale' ,type= str ,  help='loss')
 parser.add_argument('--latent_noise',  default ='gaussian' ,type= str ,  help='loss')
 
@@ -78,16 +80,25 @@ parser.add_argument('--fid_samples', default = 50000, type= int,  help='gpu devi
 
 parser.add_argument('--sample_type', type= str,  help='types of posterior samples to draw')
 
+parser.add_argument('--train_which', type= str,  help='which models you actually want to train')
+
 
 
 args = parser.parse_args()
 args = make_flags(args,args.config)
-exp = Trainer(args)
+trainer = Trainer(args, load_inception=False)
 
-if args.load_pre_trained:
-	exp.eval_pre_trained()
+# check whether we want to load a pretrained model depending on the given parameters
+pt = ''
+if len(args.d_path) > 0:
+    pt += 'd'
+if len(args.g_path) > 0:
+    pt += 'g'
+
+if args.eval_pre_trained:
+	trainer.eval_pre_trained(evaluate=True)
 else:
-	exp.train()
+	trainer.train(which=args.train_which, pretrained=pt)
 #exp.compute_inception_stats()
 #test_acc = exp.test()
 print('Training completed!')

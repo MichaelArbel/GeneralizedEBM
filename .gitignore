@@ -4,6 +4,8 @@ data/
 metrics/*
 !metrics/fid.py
 
+swc_sshfs/
+old/
 
 
 __pycache__/
