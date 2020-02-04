@@ -1,0 +1,22 @@
+b_size: 100
+dataset: cifar10
+
+total_epochs: 1000
+
+log_dir : '/nfs/gatsbystor/michaela/projects/kale/exp/uci_best'
+optimizer: Adam
+
+criterion : 'kale'
+
+#data_name : 'redwine' # 'whitewine', 'parkinsons', 'gas', 'power', 'hepmass', 'minibone'
+#sdata_name : 'parkinsons'
+problem : 'unconditional'
+penalty_lambda : 0.1
+#penalty_lambda : 0.09
+penalty_type: 'gradients_l2'
+scheduler : 'MultiStepLR'
+Z_factor : 100
+generator : 'made'
+no_progress_bar : True
+penalty_g_lambda : 0.000001
+lr : 0.00001
