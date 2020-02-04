@@ -2,11 +2,13 @@ import torch
 import torch.nn.functional as F
 from torch.autograd import Variable
 
-def hinge(true_data, fake_data, loss_type):
-	if loss_type=='discriminator':
-		return F.relu(1.0- true_data).mean()+ F.relu(1.0+ fake_data).mean()
-	else:
-		return -discriminator(generator(z)).mean()
+# TODO: fix this
+# def hinge(true_data, fake_data, loss_type):
+# 	if loss_type=='discriminator':
+# 		return F.relu(1.0- true_data).mean()+ F.relu(1.0+ fake_data).mean()
+# 	else:
+# 		return -discriminator(generator(z)).mean()
+
 def wasserstein(true_data,fake_data,loss_type):
 	if loss_type=='discriminator':
 		return -true_data.mean() + fake_data.mean()

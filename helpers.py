@@ -101,7 +101,7 @@ def get_loss(args):
         return losses.logistic
     elif args.criterion=='kale':
         return losses.kale
-    elif args.criterion == 'kale_no_partition':
+    elif args.criterion=='kale_np':
         return losses.kale
 
 # def get_reg(args, model):
@@ -143,7 +143,7 @@ def get_latent(args,device):
 
 
 # get posterior samples using MLE information learned by the GAN
-def get_latent_samples(args, device, s_type, g=None, h=None, gamma=2e-2, kappa=4e-2, T=200):
+def get_latent_samples(args, device, s_type, g=None, h=None, gamma=2e-2, kappa=4e-2, T=150):
     normal_gen = torch.distributions.Normal(torch.zeros((args.b_size, args.Z_dim)).to(device),1)
     prior_z = normal_gen.sample()
 
@@ -214,9 +214,9 @@ def get_latent_samples(args, device, s_type, g=None, h=None, gamma=2e-2, kappa=4
 # initialize neural net corresponding to type
 def get_net(args, net_type, device):
     if net_type == 'discriminator':
-        net = Discriminator(nn_type=args.dis_model).to(device)
+        net = Discriminator(nn_type=args.d_model).to(device)
     elif net_type == 'generator':
-        net = Generator(nz=args.Z_dim, nn_type=args.gen_model).to(device)
+        net = Generator(nz=args.Z_dim, nn_type=args.g_model).to(device)
     return net
     
 

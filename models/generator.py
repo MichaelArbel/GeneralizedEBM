@@ -49,7 +49,7 @@ class Generator(nn.Module):
                 nn.Tanh()
             )
 
-        elif nn_type == 'spectral_dcgan':
+        elif nn_type == 'spectral-dcgan':
             # adapted from https://github.com/christiancosgrove/pytorch-spectral-normalization-gan
             # with spectral norm from pytorch
 
@@ -72,7 +72,7 @@ class Generator(nn.Module):
             )
 
 
-        elif nn_type == 'spectral_resnet':
+        elif nn_type == 'spectral-resnet':
 
             # adapted from https://github.com/christiancosgrove/pytorch-spectral-normalization-gan
             # with spectral norm from pytorch
@@ -101,9 +101,9 @@ class Generator(nn.Module):
 
 
     def forward(self, input):
-        if self.nn_type in ['dcgan', 'spectral_dcgan']:
+        if self.nn_type in ['dcgan', 'spectral-dcgan']:
             output = self.main(input.view(-1, self.z_dim, 1, 1))
-        elif self.nn_type in ['spectral_resnet']:
+        elif self.nn_type in ['spectral-resnet']:
             output = self.main(self.dense(input).view(-1, self.gen_size, 4, 4))
         
         return output
