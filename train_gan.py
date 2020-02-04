@@ -27,6 +27,9 @@ parser.add_argument('--log_name', default='', type= str,  help='name for the run
 parser.add_argument('--d_path', default='', type= str, help='path to discriminator checkpoint')
 parser.add_argument('--g_path', default='', type= str, help='path to generator checkpoint')
 
+parser.add_argument('--Z_folder', default='', type=str, help='stored Zs')
+parser.add_argument('--bb_size', type=int, default=1000, help='# Zs per batch, running out of memory is bad')
+
 # control parameters
 parser.add_argument('--mode', type=str, default='train', help='train, eval_pre_trained, etc')
 parser.add_argument('--train_which', type=str, help='which models to train')
@@ -51,8 +54,9 @@ parser.add_argument('--g_model', default = 'dcgan' ,type= str,  help='check mode
 parser.add_argument('--d_model', default = 'vanilla' ,type= str,  help='check models/disciminator.py')
 
 # sampling noise parameters
-parser.add_argument('--sample_type', type= str,  help='types of posterior samples to draw')
+parser.add_argument('--sample_types', type= str,  help='types of posterior samples to draw')
 parser.add_argument('--latent_noise',  default ='gaussian' ,type= str ,  help='loss')
+parser.add_argument('--lmc_steps', default=10, type=int, help='#steps to take for mixing')
 
 # choose loss function, optimizer parameters
 parser.add_argument('--criterion',  default ='kale' ,type= str ,  help='loss')
@@ -89,16 +93,15 @@ parser.add_argument('--fid_samples', default = 50000, type= int,  help='gpu devi
 
 
 
+
 args = parser.parse_args()
 args = make_flags(args, args.config)
 trainer = Trainer(args)
 
 # check whether we want to load a pretrained model depending on the given parameters
 
-if args.eval_pre_trained:
-	trainer.eval_pre_trained()
-else:
-	trainer.train()
+
+trainer.main()
 #exp.compute_inception_stats()
 #test_acc = exp.test()
 print('Training completed!')

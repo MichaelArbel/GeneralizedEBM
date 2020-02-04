@@ -4,7 +4,7 @@ dataset: cifar10
 total_epochs: 100
 
 g_model : 'dcgan'
-d_model : 'vanilla'
+d_model : 'vanilla-no-sigmoid'
 
 optimizer: Adam
 
@@ -12,11 +12,11 @@ criterion : 'kale'
 
 # load pretrained weights
 # use a single generator for all tests
-d_path : 'logs/vanilla_lr-0.01/checkpoints/d_60.pth'
+d_path : 'logs/vanilla-no-sigmoid_lr-0.01/checkpoints/d_32.pth'
 g_path : 'weights/dcgan/netG_epoch_199.pth'
 
 log_dir : 'logs_eval'
-log_name : 'vanilla_gp-0.01'
+log_name : 'vanilla-no-sigmoid_gp-0.01'
 
 penalty_type : gradient_l2
 penalty_lambda : 0.01
@@ -30,10 +30,11 @@ mode : 'eval'
 Z_dim : 100
 sample_type : 'none,lmc'
 
-#Z_folder : logs_eval/vanilla_gp-0.01/samples/Z_eval_eval_0.pkl
-bb_size : 1000
+#Z_folder : logs_eval/vanilla_gp-0.01/samples/
+bb_size : 2000
 
 log_to_file : True
+
 
 
 

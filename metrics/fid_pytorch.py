@@ -157,8 +157,7 @@ def get_activations(images, model, device,batch_size=50, dims=2048, verbose=True
 
     for i in tqdm(range(n_batches)):
         if verbose:
-            print('\rPropagating batch %d/%d' % (i + 1, n_batches),
-                  end='', flush=True)
+            print('  Propagating batch %d/%d' % (i + 1, n_batches))
         start = i * batch_size
         end = start + batch_size
 

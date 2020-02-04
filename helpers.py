@@ -21,6 +21,7 @@ from models.discriminator import Discriminator
 import losses
 
 import pdb
+import time
 
 
 def get_data_loader(args):
@@ -143,8 +144,7 @@ def get_latent(args,device):
 
 
 # get posterior samples using MLE information learned by the GAN
-def get_latent_samples(prior_z, s_type, g=None, h=None, sampler=None, gamma=2e-2, kappa=4e-2, T=150):
-
+def get_latent_samples(prior_z, s_type, g=None, h=None, sampler=None, gamma=1e-2, kappa=4e-2, T=10):
     if s_type == 'none':
         # don't sample from the posterior
         return prior_z
@@ -162,11 +162,13 @@ def get_latent_samples(prior_z, s_type, g=None, h=None, sampler=None, gamma=2e-2
         Z_t = prior_z.clone().detach()
 
         if s_type == 'lmc':
+
             # langevin monte carlo
             V_t = torch.zeros_like(Z_t)
             C = np.exp(-kappa * gamma)
             D = np.sqrt(1 - np.exp(-2 * kappa * gamma))
             for t in range(T):
+                
                 # reset computation graph
                 Z_t.detach_()
                 V_t.detach_()
@@ -175,12 +177,13 @@ def get_latent_samples(prior_z, s_type, g=None, h=None, sampler=None, gamma=2e-2
                 # calculate potentials and derivatives
                 U = U_potential(Z_half, h, g).sum()
                 U.backward()
-                dUdZ = Z_half.grad.detach()
+                dUdZ = Z_half.grad
                 # update values
                 V_half = V_t - gamma / 2 * dUdZ
                 V_tilde = C * V_half + D * sampler.sample()
                 V_t = V_tilde - gamma / 2 * dUdZ
                 Z_t = Z_half + gamma / 2 * V_t
+                
 
         if s_type.startswith('mmc'):
             # michael monte carlo

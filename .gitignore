@@ -1,6 +1,9 @@
 logs/
 data/
 
+logs_train
+logs_eval
+
 metrics/*
 !metrics/fid.py
 
