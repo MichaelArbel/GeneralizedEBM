@@ -20,10 +20,19 @@ import losses
 
 
 from dde.conditional.r_data_loader import load_dataset
+from Datasets import load_data
 
-from dataloader import PrepareData
+from dataloader import PrepareData,PrepareUCIData
+
 
 def get_data_loader(args):
+	if args.problem=='unconditional':
+		return get_data_loader_uci(args)
+	elif args.problem=='conditional':
+		return get_data_loader_benchmark(args)
+
+
+def get_data_loader_benchmark(args):
 	x_train, y_train, x_test, y_test = load_dataset(args.data_root,args.data_name)
 	num_train = int(x_train.shape[0]*1.)
 	valid_set = PrepareData(x_train[:num_train], y=y_train[:num_train])
@@ -34,8 +43,30 @@ def get_data_loader(args):
 	trainloader = torch.utils.data.DataLoader(train_set, batch_size=args.b_size, shuffle=True, num_workers=args.num_workers)
 	testloader = torch.utils.data.DataLoader(test_set, batch_size=args.b_size, shuffle=True, num_workers=args.num_workers)
 	validloader = torch.utils.data.DataLoader(valid_set, batch_size=args.b_size, shuffle=True, num_workers=args.num_workers)
+	log_volume = 0.
+	return trainloader,testloader,validloader,log_volume
 
-	return trainloader,testloader,validloader
+
+
+def get_data_loader_uci(args):
+	p = load_data(args.data_name)
+
+	train_data = p.data
+	test_data = p.test_data
+	valid_data = p.valid_data
+	log_volume =  np.sum(np.log(p.s))
+	train_set = PrepareUCIData(train_data)
+	test_set = PrepareUCIData(test_data)
+	valid_set = PrepareUCIData(valid_data)
+	#valid_set = PrepareData(x_train[num_train:], y=y_train[num_train:])
+
+
+	trainloader = torch.utils.data.DataLoader(train_set, batch_size=args.b_size, shuffle=True, num_workers=args.num_workers)
+	testloader = torch.utils.data.DataLoader(test_set, batch_size=args.b_size, shuffle=True, num_workers=args.num_workers)
+	validloader = torch.utils.data.DataLoader(valid_set, batch_size=args.b_size, shuffle=True, num_workers=args.num_workers)
+
+	return trainloader,testloader,validloader, log_volume
+
 
 
 def get_loss(args):
@@ -83,10 +114,12 @@ def get_discriminator(args,input_dims,device):
 	return model.Discriminator(input_dims).to(device)
 
 def get_generator(args,input_dims,device):
-	if args.problem == 'conditional':
+	if args.generator == 'conditional':
 		net = model.GeneratorCond(input_dims).to(device)
-	elif args.problem == 'unconditional':
+	elif args.generator == 'unconditional':
 		net = model.GeneratorUnCond(input_dims).to(device)
+	elif args.generator == 'made':
+		net = model.MADEGenerator(input_dims).to(device)
 	return net
 
 

@@ -27,6 +27,7 @@ parser.add_argument('--d_path', default = '',type= str,  help='log directory for
 parser.add_argument('--g_path', default = '',type= str,  help='log directory for summaries and checkpoints')
 parser.add_argument('--load_pre_trained', action = 'store_true', help='log directory for summaries and checkpoints')
 
+parser.add_argument('--generator', default = 'made',type= str,  help='log directory for summaries and checkpoints')
 
 parser.add_argument('--problem', default = 'conditional',type= str,  help='log directory for summaries and checkpoints')
 parser.add_argument('--data_root', default = '/nfs/ghome/live/michaela/Documents/projects/dde/data/r_benchmark',type= str,  help='log directory for summaries and checkpoints')
@@ -34,10 +35,10 @@ parser.add_argument('--data_name', default = 'BigMac2003',type= str,  help='log 
 parser.add_argument('--penalty_lambda', default=0.001, type=float, help='learning rate')
 parser.add_argument('--Z_factor', default=500, type=int, help='learning rate')
 parser.add_argument('--penalty_type', default = 'gradient',type= str,  help='log directory for summaries and checkpoints')
+parser.add_argument('--penalty_g_lambda', default = 0.01,type= float,  help='log directory for summaries and checkpoints')
 
 parser.add_argument('--dataset', default = 'cifar10',type= str,  help='log directory for summaries and checkpoints')
 parser.add_argument('--data_dir', default = 'data',type= str,  help='log directory for summaries and checkpoints')
-parser.add_argument('--log_in_file', action = 'store_true' ,  help='gpu device')
 parser.add_argument('--no_progress_bar', action = 'store_true' ,  help='gpu device')
 
 parser.add_argument('--num_workers', default = 4 ,type= int,  help='gpu device')
@@ -65,7 +66,7 @@ parser.add_argument('--weight_decay', default=0.0, type=float, help='learning ra
 parser.add_argument('--lr_decay',  default = 0.9 ,type= float ,  help='gpu device')
 
 parser.add_argument('--n_iter_d_init', default = 100, type= int,  help='gpu device')
-parser.add_argument('--n_iter_d', default = 5, type= int,  help='gpu device')
+parser.add_argument('--n_iter_d', default = 10, type= int,  help='gpu device')
 parser.add_argument('--Z_dim', default = 128, type= int,  help='gpu device')
 
 # Scheduler parameters 
@@ -87,6 +88,7 @@ exp = Trainer(args)
 if args.load_pre_trained:
 	exp.eval_pre_trained()
 else:
+	#exp.cross_train()
 	exp.train()
 #exp.compute_inception_stats()
 #test_acc = exp.test()

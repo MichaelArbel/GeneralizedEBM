@@ -1,22 +1,21 @@
 b_size: 128
 dataset: cifar10
 
-total_epochs: 500
+total_epochs: 1000
 
-log_dir : '/nfs/gatsbystor/michaela/projects/kale/exp'
-log_name : 'benchmark'
+log_dir : '/nfs/gatsbystor/michaela/projects/kale/exp/benchmark'
 optimizer: Adam
 
 criterion : 'kale'
 
-data_name : 'BigMac2003'
-
 problem : 'conditional'
-penalty_lambda : 0.05
+penalty_lambda : 0.29
+#penalty_lambda : 0.09
 penalty_type: 'gradient_l2'
 scheduler : 'MultiStepLR'
 Z_factor : 1000
+no_progress_bar : True
 
-lr : 0.0001
+lr : 0.00001
 
 
