@@ -150,6 +150,10 @@ class Trainer(object):
 		self.discriminator.load_state_dict(d_model)
 		self.discriminator = self.discriminator.to(self.device)	
 
+	def load_log_partition(self):
+		partition = torch.load(self.args.log_partition_path +'.pth')
+		self.log_partition = self.log_partition.to(self.device)	
+
 	def sample_images(self,epoch):
 		sample_types = self.args.sample_type.split(',')
 		for s in sample_types:
@@ -279,7 +283,6 @@ def assign_device(device):
 	elif device==-2:
 		device = 'cpu'
 	return device
-
 
 # unused
 def compute_fid(mu1, sigma1, mu2, sigma2):
