@@ -4,7 +4,9 @@ from torch import nn
 
 import torch.nn.functional as F
 
-from torch.nn.utils import spectral_norm
+from torch.nn.utils import spectral_norm as sn_official
+
+from old.spectral_normalization import SpectralNorm as sn_online
 
 
 
@@ -57,7 +59,43 @@ class Discriminator(nn.Module):
                 nn.Sigmoid()
             )
 
-        elif nn_type == 'spectral_dcgan':
+        elif nn_type == 'vanilla-no-sigmoid':
+            nc = 3
+            ndf = 64
+            leak = 0.2
+
+            if 'nc' in kwargs:
+                nc = kwargs['nc']
+            if 'ndf' in kwargs:
+                ndf = kwargs['ndf']
+            if 'leak' in kwargs:
+                leak = kwargs['leak']
+
+            self.main = nn.Sequential(
+                # input is (nc) x 64 x 64
+                # nn.Conv2d(in_channels, out_channels, kernel_size, stride, padding, dilation...)
+                nn.Conv2d(nc, ndf, 4, 2, 1, bias=False),
+                nn.LeakyReLU(leak, inplace=True),
+                # state size. (ndf) x 32 x 32
+                nn.Conv2d(ndf, ndf * 2, 4, 2, 1, bias=False),
+                nn.BatchNorm2d(ndf * 2),
+                nn.LeakyReLU(leak, inplace=True),
+                # state size. (ndf*2) x 16 x 16
+                nn.Conv2d(ndf * 2, ndf * 4, 4, 2, 1, bias=False),
+                nn.BatchNorm2d(ndf * 4),
+                nn.LeakyReLU(leak, inplace=True),
+                # state size. (ndf*4) x 8 x 8
+                nn.Conv2d(ndf * 4, ndf * 8, 4, 2, 1, bias=False),
+                nn.BatchNorm2d(ndf * 8),
+                nn.LeakyReLU(leak, inplace=True),
+                # state size. (ndf*8) x 4 x 4
+                #nn.Conv2d(ndf * 8, 1, 4, 1, 0, bias=False),
+                # change documented at https://github.com/pytorch/examples/issues/486
+                nn.Conv2d(ndf * 8, 1, 2, 2, 0, bias=False)
+                #nn.Sigmoid()
+            )
+
+        elif nn_type == 'spectral-dcgan':
             # adapted from https://github.com/christiancosgrove/pytorch-spectral-normalization-gan
             # with spectral norm from pytorch
 
@@ -74,30 +112,35 @@ class Discriminator(nn.Module):
             if 'leak' in kwargs:
                 leak = kwargs['leak']
 
+            spectral_norm = sn_official
+
             self.main = nn.Sequential(
                 # layer 1
                 spectral_norm(nn.Conv2d(nc, ndf, 3, 1, 1, bias=True)),
                 nn.LeakyReLU(leak),
                 # layer 2
+                spectral_norm(nn.Conv2d(ndf, ndf, 4, 2, 1, bias=True)),
+                nn.LeakyReLU(leak),
+                #layer 3
                 spectral_norm(nn.Conv2d(ndf, ndf * 2, 3, 1, 1, bias=True)),
                 nn.LeakyReLU(leak),
-                # layer 3
+                # layer 4
                 spectral_norm(nn.Conv2d(ndf * 2, ndf * 2, 4, 2, 1, bias=True)),
                 nn.LeakyReLU(leak),
-                # layer 4
+                # layer 5
                 spectral_norm(nn.Conv2d(ndf * 2, ndf * 4, 3, 1, 1, bias=True)),
                 nn.LeakyReLU(leak),
-                # layer 5
+                # layer 6
                 spectral_norm(nn.Conv2d(ndf * 4, ndf * 4, 4, 2, 1, bias=True)),
                 nn.LeakyReLU(leak),
-                # layer 6
+                # layer 7
                 spectral_norm(nn.Conv2d(ndf * 4, ndf * 8, 3, 1, 1, bias=True)),
                 nn.LeakyReLU(leak),
                 nn.Flatten(),
                 spectral_norm(nn.Linear(w_g * w_g * 512, 1))
             )
 
-        elif nn_type == 'spectral_resnet':
+        elif nn_type == 'spectral-resnet':
             # adapted from https://github.com/christiancosgrove/pytorch-spectral-normalization-gan
             # with spectral norm from pytorch
 
@@ -124,9 +167,9 @@ class Discriminator(nn.Module):
 
 
     def forward(self, input):
-        if self.nn_type in ['spectral_resnet']:
+        if self.nn_type in ['spectral-resnet']:
             output = self.main(input).view(-1, self.disc_size)
-        elif self.nn_type in ['vanilla', 'spectral_dcgan']:
+        elif self.nn_type in ['vanilla', 'vanilla-no-sigmoid', 'spectral-dcgan']:
             output = self.main(input)
 
         return output.view(-1, 1).squeeze(1)
