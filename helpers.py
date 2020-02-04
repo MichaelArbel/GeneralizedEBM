@@ -143,9 +143,7 @@ def get_latent(args,device):
 
 
 # get posterior samples using MLE information learned by the GAN
-def get_latent_samples(args, device, s_type, g=None, h=None, gamma=2e-2, kappa=4e-2, T=150):
-    normal_gen = torch.distributions.Normal(torch.zeros((args.b_size, args.Z_dim)).to(device),1)
-    prior_z = normal_gen.sample()
+def get_latent_samples(prior_z, s_type, g=None, h=None, sampler=None, gamma=2e-2, kappa=4e-2, T=150):
 
     if s_type == 'none':
         # don't sample from the posterior
@@ -161,29 +159,28 @@ def get_latent_samples(args, device, s_type, g=None, h=None, gamma=2e-2, kappa=4
             return 1/2 * torch.norm(z, dim=1) ** 2 + h(g(z))
 
         # Zs are the samples
-        Z = [prior_z]
+        Z_t = prior_z.clone().detach()
 
         if s_type == 'lmc':
             # langevin monte carlo
-            V = [torch.zeros_like(Z[0])]
+            V_t = torch.zeros_like(Z_t)
             C = np.exp(-kappa * gamma)
             D = np.sqrt(1 - np.exp(-2 * kappa * gamma))
             for t in range(T):
                 # reset computation graph
-                Z[t].detach_()
-                V[t].detach_()
-                Z_half = Z[t] + gamma / 2 * V[t]
+                Z_t.detach_()
+                V_t.detach_()
+                Z_half = Z_t + gamma / 2 * V_t
                 Z_half.requires_grad_()
                 # calculate potentials and derivatives
-                U = U_potential(Z_half, h, g)
-                U = torch.sum(U)
+                U = U_potential(Z_half, h, g).sum()
                 U.backward()
-                dUdZ = Z_half.grad.data.clone().detach()
+                dUdZ = Z_half.grad.detach()
                 # update values
-                V_half = V[t] - gamma / 2 * dUdZ
-                V_tilde = C * V_half + D * normal_gen.sample()
-                V.append(V_tilde - gamma / 2 * dUdZ)
-                Z.append(Z_half + gamma / 2 * V[t+1])
+                V_half = V_t - gamma / 2 * dUdZ
+                V_tilde = C * V_half + D * sampler.sample()
+                V_t = V_tilde - gamma / 2 * dUdZ
+                Z_t = Z_half + gamma / 2 * V_t
 
         if s_type.startswith('mmc'):
             # michael monte carlo
@@ -192,22 +189,22 @@ def get_latent_samples(args, device, s_type, g=None, h=None, gamma=2e-2, kappa=4
             elif s_type == 'mmc2':
                 C = np.sqrt(2 * gamma)
             for t in range(T):
-                Z[t].requires_grad_()
-                U = U_potential(Z[t], h, g)
-                U = torch.sum(U)
+                Z_t.requires_grad_()
+                U = U_potential(Z_t, h, g).sum()
                 U.backward()
-                dUdZ = Z[t].grad.data.clone().detach()
-                Z_new = Z[t] - gamma * dUdZ
+                dUdZ = Z_t.grad.detach()
+                Z_new = Z_t - gamma * dUdZ
                 if s_type == 'mmc2':
-                    Z_new += C * normal_gen.sample()
-                Z.append(Z[t] - gamma * dUdZ)
-                Z[t+1].detach_()
+                    Z_new += C * sampler.sample()
+                Z_t = Z_t - gamma * dUdZ
+                Z_t.detach_()
 
         h.train()
         g.train()
+        Z_t.detach_()
 
-        # we just want the last sample
-        return Z[-1]
+        # we just want the prior, and the last sample
+        return Z_t
 
 
 
