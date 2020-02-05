@@ -308,7 +308,7 @@ class Trainer(object):
             plt.close(fig)
 
     # evaluate a pretrained model thoroughly via FID
-    def eval_pre_trained(self, num_evaluations=20, save_Z=True):
+    def eval_pre_trained(self, num_evaluations=16, save_Z=True):
         print('==> Evaluating pre-trained model...')
         self.load_generator()
         self.load_discriminator()
@@ -317,23 +317,30 @@ class Trainer(object):
         for s in self.sample_types:
             kales[s] = []
             fids[s] = []
-        for n in range(num_evaluations):
-            print(f'\n\n######### STARTING EVALUATION #{n}')
-            kale, fid, _ = self.evaluate(eval_id=n)
-            for s in self.sample_types:
-                kales[s].append(kale[s])
-                fids[s].append(fid[s])
-        
-        with open(os.path.join(self.log_dir, 'kales_and_fids.json'), 'w') as f:
-            json.dump([kales, fids], f, indent=4)
+
+        kf_path = os.path.join(self.log_dir, 'kales_and_fids.json')
+        if os.path.isfile(kf_path):
+            with open(kf_path, 'r') as f:
+                kales, fids = json.load(f)
+        else:
+            for n in range(num_evaluations):
+                print(f'\n\n######### STARTING EVALUATION #{n}')
+                kale, fid, _ = self.evaluate(eval_id=n)
+                for s in self.sample_types:
+                    kales[s].append(kale[s])
+                    fids[s].append(fid[s])
+            
+            with open(os.path.join(self.log_dir, 'kales_and_fids.json'), 'w') as f:
+                json.dump([kales, fids], f, indent=4)
 
         for s in self.sample_types:
             mean = np.array(kales[s]).mean()
             std = np.array(kales[s]).std()
             print(f'{s}: KALE mean: {mean}, std: {std}')
 
-            mean = np.array(fids[s][1]).mean()
-            std = np.array(fids[s][1]).std()
+            these_fids = [i[1] for i in fids[s]]
+            mean = np.array(these_fids).mean()
+            std = np.array(these_fids).std()
             print(f'{s}: FID mean: {mean}, std: {std}')
 
     # see how well the network is doing and save the Zs because they are possibly expensive to compute
@@ -396,7 +403,8 @@ class Trainer(object):
             normal_gen = torch.distributions.Normal(torch.zeros((bb_size, self.args.Z_dim)).to(self.device),1)
             for b in range(n_batches):
                 #print(f'\r', flush=True, end='')
-                print(f'  Starting batch {b+1}/{n_batches}, avg time {avg_time}s')
+                if b % 10 == 0:
+                    print(f'  Starting batch {b+1}/{n_batches}, avg time {avg_time}s')
                 if m < self.args.fid_samples:
                     bl = min(self.args.fid_samples - m, bb_size)
                     prior_Z = normal_gen.sample()

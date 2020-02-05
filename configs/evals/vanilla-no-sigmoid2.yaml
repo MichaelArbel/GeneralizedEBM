@@ -16,11 +16,11 @@ d_path : 'logs/vanilla-no-sigmoid_lr-0.01/checkpoints/d_32.pth'
 g_path : 'weights/dcgan/netG_epoch_199.pth'
 
 log_dir : 'logs_eval'
-log_name : 'vanilla-no-sigmoid_gp-0.01'
+log_name : 'vanilla-no-sigmoid_gp-0.01_T-80'
 
 penalty_type : gradient_l2
 penalty_lambda : 0.01
-with_fid : False
+with_fid : True
 
 # train
 mode : 'eval'
@@ -29,11 +29,12 @@ mode : 'eval'
 # sampling stuff
 Z_dim : 100
 sample_types : 'none,lmc'
+lmc_steps : 80
 
 #Z_folder : logs_eval/vanilla_gp-0.01/samples/
-bb_size : 2000
+bb_size : 1000
 
-log_to_file : False
+log_to_file : True
 
 
 
