@@ -108,13 +108,18 @@ def _gradient_penalty_normal(d, true_data, fake_data, device):
     return ((gradients_norm - 1) ** 2).mean()
 
 
+def penalty_fakemag(f):
+    return torch.exp(-f).mean()
 
 # get posterior samples using MLE information learned by the GAN
-def sample_posterior(prior_z, s_type, g=None, h=None, device=None, n_samples=1, burn_in=80, interval=20, gamma=1e-2, kappa=4e-2):
+def sample_posterior(prior_z, s_type, g=None, h=None, device=None, n_samples=1, burn_in=80, extract_every=0, interval=20, gamma=1e-2, kappa=4e-2):
     # total number of steps necessary to get that many samples
     sampler = torch.distributions.Normal(torch.zeros_like(prior_z).to(device), 1)
     T = burn_in + interval * (n_samples-1)
+    if extract_every != 0:
+        T += 1
     Z_list = []
+    Z_extract_list = []
     if s_type == 'none':
         # don't sample from the posterior
         Z_list.append(prior_z)
@@ -153,6 +158,9 @@ def sample_posterior(prior_z, s_type, g=None, h=None, device=None, n_samples=1, 
             V_t = V_tilde - gamma / 2 * dUdZ
             Z_t = Z_half + gamma / 2 * V_t
 
+            if extract_every != 0 and t % extract_every == 0:
+                Z_extract_list.append(Z_t.clone().detach().cpu())
+
             if t >= burn_in - 1 and (t - burn_in + 1) % interval == 0:
                 Z_list.append(Z_t.clone().detach())
                 
@@ -161,6 +169,8 @@ def sample_posterior(prior_z, s_type, g=None, h=None, device=None, n_samples=1, 
 
     Zs = torch.cat(Z_list, dim=0)
     assert Zs.shape[0] == n_samples * prior_z.shape[0]
+    if extract_every != 0:
+        return Z_extract_list
     return Zs
 
 

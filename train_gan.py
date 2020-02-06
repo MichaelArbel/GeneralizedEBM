@@ -38,9 +38,6 @@ parser.add_argument('--data_dir', default = 'data',type= str,  help='log directo
 parser.add_argument('--log_to_file', action='store_true', help='log stdout/stderr to logfile')
 parser.add_argument('--log_nothing', action='store_true', help='no trace')
 
-parser.add_argument('--drop_worst_results', default=0, help='gradient fix')
-
-
 # operational parameters
 parser.add_argument('--device', default = 0 ,type= int,  help='gpu device')
 parser.add_argument('--seed', default = 0 ,type= int ,  help='gpu device')
@@ -58,7 +55,7 @@ parser.add_argument('--bb_size', type=int, default=1000, help='# Zs per batch, r
 
 # sampling noise parameters
 parser.add_argument('--sample_types', type= str,  help='types of posterior samples to draw')
-parser.add_argument('--lmc_steps', default=10, type=int, help='#steps to take for mixing')
+parser.add_argument('--lmc_sample_size', default=1, type=int, help='#samples per chain')
 
 
 # choose loss function, optimizer parameters

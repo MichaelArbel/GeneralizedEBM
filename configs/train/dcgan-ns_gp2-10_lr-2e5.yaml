@@ -4,7 +4,7 @@ dataset: cifar10
 total_epochs: 100
 
 g_model : 'dcgan'
-d_model : 'resnet-sn'
+d_model : 'dcgan-ns'
 
 optimizer: Adam
 
@@ -19,12 +19,10 @@ log_dir : 'logs'
 log_name : 'dcgan-ns_gp2-10_lr-2e5'
 
 penalty_type : gradient2_l2
-penalty_lambda : 1
+penalty_lambda : 10
 with_fid : False
 
-# penalty_fakemag : 10
-
-lr : 0.0002
+lr : 0.00002
 
 # train
 mode : train
@@ -36,8 +34,7 @@ sample_types : 'none,lmc'
 bb_size : 50
 lmc_sample_size : 20
 
-log_to_file : false
-log_nothing : true
+log_to_file : true
 
 
 

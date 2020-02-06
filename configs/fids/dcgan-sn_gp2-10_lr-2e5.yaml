@@ -4,7 +4,7 @@ dataset: cifar10
 total_epochs: 100
 
 g_model : 'dcgan'
-d_model : 'resnet-sn'
+d_model : 'dcgan-sn'
 
 optimizer: Adam
 
@@ -12,32 +12,29 @@ criterion : 'kale'
 
 # load pretrained weights
 # use a single generator for all tests
-# d_path : 'weights/dcgan/netD_epoch_199'
+d_path : 'logs/dcgan-sn_gp2-10_lr-2e5/train/checkpoints/d_90.pth'
 g_path : 'weights/dcgan/netG_epoch_199.pth'
 
 log_dir : 'logs'
-log_name : 'dcgan-ns_gp2-10_lr-2e5'
+log_name : 'dcgan-sn_gp2-10_lr-2e5'
 
 penalty_type : gradient2_l2
-penalty_lambda : 1
-with_fid : False
+penalty_lambda : 10
+with_fid : True
 
-# penalty_fakemag : 10
-
-lr : 0.0002
+lr : 0.00002
 
 # train
-mode : train
-train_which : 'discriminator'
+mode : fids
+# train_which : 'discriminator'
 
 # sampling stuff
 Z_dim : 100
 sample_types : 'none,lmc'
-bb_size : 50
-lmc_sample_size : 20
+bb_size : 1000
+lmc_sample_size : 1
 
-log_to_file : false
-log_nothing : true
+log_to_file : true
 
 
 

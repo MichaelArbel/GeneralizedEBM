@@ -1,7 +1,7 @@
 b_size: 128
 dataset: cifar10
 
-total_epochs: 300
+total_epochs: 100
 
 g_model : 'dcgan'
 d_model : 'dcgan-sn'
@@ -12,22 +12,21 @@ criterion : 'kale'
 
 # load pretrained weights
 # use a single generator for all tests
-d_path : 'logs_both/dcgan_lr-1e3,dcgan-sn/train/checkpoints/d_78.pth'
-g_path : 'logs_both/dcgan_lr-1e3,dcgan-sn/train/checkpoints/g_78.pth'
+# d_path : 'weights/dcgan/netD_epoch_199'
+g_path : 'weights/dcgan/netG_epoch_199.pth'
 
-log_dir : 'logs_both'
-log_name : 'dcgan_lr-1e3,dcgan-sn'
+log_dir : 'logs'
+log_name : 'dcgan-sn_gp2-1_lr-2e5'
 
-penalty_type : 'none'
-penalty_lambda : 0.01
+penalty_type : gradient2_l2
+penalty_lambda : 1
 with_fid : False
 
-lr : 0.0002
-lr_generator : 0.001
+lr : 0.00002
 
 # train
 mode : train
-train_which : 'both'
+train_which : 'discriminator'
 
 # sampling stuff
 Z_dim : 100

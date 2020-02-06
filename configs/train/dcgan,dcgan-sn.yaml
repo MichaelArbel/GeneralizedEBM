@@ -1,7 +1,7 @@
 b_size: 128
 dataset: cifar10
 
-total_epochs: 300
+total_epochs: 400
 
 g_model : 'dcgan'
 d_model : 'dcgan-sn'
@@ -21,6 +21,9 @@ log_name : 'dcgan,dcgan-sn'
 penalty_type : 'none'
 penalty_lambda : 0.01
 with_fid : False
+
+lr : 0.0001
+lr_generator : 0.0001
 
 # train
 mode : train

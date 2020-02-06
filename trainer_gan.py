@@ -51,7 +51,7 @@ class Trainer(object):
 
         self.with_fid = args.with_fid
         self.mode = args.mode
-        self.lmc_steps = args.lmc_steps
+        self.lmc_sample_size = args.lmc_sample_size
         self.sample_types = self.args.sample_types.split(',')
         self.build_model()
         
@@ -64,6 +64,8 @@ class Trainer(object):
             self.eval_pre_trained()
         elif self.mode == 'images':
             self.get_quick_images()
+        elif self.mode == 'fids':
+            self.get_lmc_fids()
         
 
     # model building functions
@@ -146,7 +148,7 @@ class Trainer(object):
 
     # train for one epoch
     def train_epoch(self, epoch=0):
-        if self.counter==0:
+        if self.counter == 0:
             n_iter_d = self.args.n_iter_d_init
         else:
             n_iter_d = self.args.n_iter_d
@@ -204,15 +206,16 @@ class Trainer(object):
         if self.args.criterion=='kale':
             true_results = true_results + self.log_partition
             fake_results = fake_results + self.log_partition
-        # if self.args.drop_worst_results > 0:
-        #     ss = torch.argsort(fake_results)[self.args.drop_worst_results:]
         # calculate loss and propagate
         loss = self.loss(true_results, fake_results, net_type) 
         penalty = self.args.penalty_lambda * \
             cp.penalty_d(self.args, self.discriminator, data, fake_data, self.device)
+        # print(penalty.item(), loss.item())
         total_loss = loss + penalty
+        #print(penalty, loss)
         # if total_loss.detach().item() > 100:
         #     pdb.set_trace()
+        
         total_loss.backward()
         if self.args.gradient_clip_norm != 0:
             if net_type == 'discriminator':
@@ -234,6 +237,8 @@ class Trainer(object):
 
     # samples 64 images according to all types in the the sample_type argument, saves them
     def sample_images(self, epoch=0):
+        if self.args.log_nothing:
+            return
         self.discriminator.eval()
         self.generator.eval()
         normal_gen = hp.get_normal(self.args, self.device, 64)
@@ -272,8 +277,27 @@ class Trainer(object):
         with open(os.path.join(self.samples_dir, f'{str(epoch).zfill(3)}-data.pkl'), 'wb') as f:
             pkl.dump(samples_dic, f)
 
+    # helper function meant for lmcs
+    def save_images(self, images, epoch=0):
+        samples = images[:64].cpu().detach().numpy()
+        fig = plt.figure(figsize=(8, 8))
+        gs = gridspec.GridSpec(8, 8)
+        gs.update(wspace=0.05, hspace=0.05)
+        for i, sample in enumerate(samples):
+            ax = plt.subplot(gs[i])
+            plt.axis('off')
+            ax.set_xticklabels([])
+            ax.set_yticklabels([])
+            ax.set_aspect('equal')
+            sample_t = sample.transpose((1,2,0)) * 0.5 + 0.5
+            plt.imshow(sample_t)
+        plt.savefig(
+            os.path.join(self.samples_dir, f'{str(epoch).zfill(3)}.png'),
+            bbox_inches='tight')
+        plt.close(fig)
+
     # evaluate a pretrained model thoroughly via FID
-    def eval_pre_trained(self, num_evaluations=12):
+    def eval_pre_trained(self, num_evaluations=4):
         print('==> Evaluating pre-trained model...')
         self.load_generator()
         self.load_discriminator()
@@ -346,6 +370,72 @@ class Trainer(object):
             else:
                 print(f'{s}-KALE: {kales[s]} (fake: {mean_fake[s]}), FID: {fids[s]}')
         return kales, fids, Zs
+
+
+    def get_lmc_fids(self):
+
+        #assert self.with_fid
+        fname = os.path.join(self.log_dir, 'lmc_data.pkl')
+
+        total_time = 100
+        extract_every = 10
+
+        if os.path.isfile(fname):
+            with open(fname, 'rb') as f:
+                images = pkl.load(f)
+            print(f'Loaded existing images from {fname}')
+        else:
+            bb_size = self.args.bb_size
+            lmc_sample_size = self.args.lmc_sample_size
+            n_batches = int(self.args.fid_samples / bb_size / lmc_sample_size) + 1
+
+            m = 0
+            normal_gen = torch.distributions.Normal(torch.zeros((bb_size, self.args.Z_dim)).to(self.device),1)
+            num_dps = int(total_time / extract_every)
+            images = []
+            for b in range(n_batches):
+                if b % 5 == 0:
+                    print(f'  Starting batch {b+1}/{n_batches}')
+                if m < self.args.fid_samples:
+                    bl = min(self.args.fid_samples - m, bb_size * lmc_sample_size)
+                    prior_Z = normal_gen.sample()
+                    posterior_Zs = cp.sample_posterior(
+                        prior_z=prior_Z,
+                        s_type='lmc', 
+                        g=self.generator,
+                        h=self.discriminator,
+                        device=self.device,
+                        n_samples=1,
+                        burn_in=100,
+                        extract_every=10
+                    )
+                    
+                    with torch.no_grad():
+                        for dp in range(num_dps):
+                            # could be small (because it's the last batch)
+                            posterior_Z = posterior_Zs[dp][:bl].to(self.device)
+                            fake_data = self.generator(posterior_Z)
+                            # save images to cpu because we have more memory there
+                            if b == 0:
+                                images.append(torch.zeros([self.args.fid_samples]+list(fake_data.shape[1:])))
+                            images[dp][m:m+bl] = fake_data.cpu()
+                        m += fake_data.size(0)
+
+            with open(fname, 'wb') as f:
+                pkl.dump(images, f)
+                print(f'Saved images into {fname}')
+
+        fids = []
+        for i, dp in enumerate(images):
+            self.save_images(dp, epoch=i*extract_every)
+            fids.append(cp.compute_fid(self.args, self.device, dp, self.fid_model, self.train_loader, self.test_loader))
+            print(F'FID at step {i*extract_every}: {fids[i]}')
+
+        with open(os.path.join(self.log_dir, 'lmc_fids.pkl'), 'w') as f:
+            json.dump(fids, f)
+            print(f'Saved fids')
+
+
 
 
     # calculate KALE and generated images
