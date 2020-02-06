@@ -9,6 +9,9 @@ class Generator(nn.Module):
 
         self.nn_type = nn_type
 
+        nc = 3
+        ngf = 64
+
         # z_dim is latent variable dimension for generator
         self.z_dim = nz
 
@@ -49,7 +52,7 @@ class Generator(nn.Module):
                 nn.Tanh()
             )
 
-        elif nn_type == 'spectral-dcgan':
+        elif nn_type == 'dcgan-sn':
             # adapted from https://github.com/christiancosgrove/pytorch-spectral-normalization-gan
             # with spectral norm from pytorch
 
@@ -72,7 +75,7 @@ class Generator(nn.Module):
             )
 
 
-        elif nn_type == 'spectral-resnet':
+        elif nn_type == 'resnet-sn':
 
             # adapted from https://github.com/christiancosgrove/pytorch-spectral-normalization-gan
             # with spectral norm from pytorch
@@ -101,7 +104,7 @@ class Generator(nn.Module):
 
 
     def forward(self, input):
-        if self.nn_type in ['dcgan', 'spectral-dcgan']:
+        if self.nn_type in ['dcgan', 'dcgan-sn']:
             output = self.main(input.view(-1, self.z_dim, 1, 1))
         elif self.nn_type in ['spectral-resnet']:
             output = self.main(self.dense(input).view(-1, self.gen_size, 4, 4))

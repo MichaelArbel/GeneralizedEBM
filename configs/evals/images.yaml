@@ -20,7 +20,7 @@ log_name : 'vanilla-no-sigmoid_gp-0.01_T-80'
 
 penalty_type : gradient_l2
 penalty_lambda : 0.01
-with_fid : True
+with_fid : False
 
 # train
 mode : 'images'
@@ -29,13 +29,12 @@ mode : 'images'
 # sampling stuff
 Z_dim : 100
 sample_types : 'none,lmc'
-lmc_steps : 80
+lmc_sample_size : 20
 
 #Z_folder : logs_eval/vanilla_gp-0.01/samples/
 bb_size : 1000
 
-log_to_file : True
-
+log_to_file : False
 
 
 

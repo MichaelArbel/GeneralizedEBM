@@ -1,0 +1,41 @@
+b_size: 128
+dataset: cifar10
+
+total_epochs: 300
+
+g_model : 'dcgan'
+d_model : 'dcgan-sn'
+
+optimizer: Adam
+
+criterion : 'kale'
+
+# load pretrained weights
+# use a single generator for all tests
+d_path : 'logs_both/dcgan,dcgan-sn/train/checkpoints/d_98.pth'
+g_path : 'logs_both/dcgan,dcgan-sn/train/checkpoints/g_98.pth'
+
+log_dir : 'logs_both'
+log_name : 'dcgan,dcgan-sn'
+
+penalty_type : 'none'
+penalty_lambda : 0.01
+with_fid : False
+
+# train
+mode : train
+train_which : 'both'
+
+# sampling stuff
+Z_dim : 100
+sample_types : 'none,lmc'
+bb_size : 50
+lmc_sample_size : 20
+
+log_to_file : true
+
+
+
+seed : 0
+
+

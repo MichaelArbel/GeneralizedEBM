@@ -1,14 +1,16 @@
 logs/
 data/
 
+logs
 logs_train
 logs_eval
+logs_both
 
 metrics/*
 !metrics/fid.py
 
 swc_sshfs/
-old/
+spectral_normalization/
 
 
 __pycache__/
