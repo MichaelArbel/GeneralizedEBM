@@ -375,9 +375,9 @@ class Trainer(object):
     def get_lmc_fids(self):
 
         #assert self.with_fid
-        fname = os.path.join(self.log_dir, 'lmc_data.pkl')
+        fname = os.path.join(self.log_dir, 'lmc_data2.json')
 
-        total_time = 100
+        total_time = 160
         extract_every = 10
 
         if os.path.isfile(fname):
@@ -406,8 +406,8 @@ class Trainer(object):
                         h=self.discriminator,
                         device=self.device,
                         n_samples=1,
-                        burn_in=100,
-                        extract_every=10
+                        burn_in=total_time,
+                        extract_every=extract_every
                     )
                     
                     with torch.no_grad():
@@ -431,8 +431,8 @@ class Trainer(object):
             fids.append(cp.compute_fid(self.args, self.device, dp, self.fid_model, self.train_loader, self.test_loader))
             print(F'FID at step {i*extract_every}: {fids[i]}')
 
-        with open(os.path.join(self.log_dir, 'lmc_fids.pkl'), 'w') as f:
-            json.dump(fids, f)
+        with open(os.path.join(self.log_dir, 'lmc_fids2.json'), 'w') as f:
+            json.dump(fids, f, indent=4)
             print(f'Saved fids')
 
 
