@@ -25,7 +25,7 @@ with_fid : True
 gradient_clip_norm : 0
 
 # train
-mode : eval
+mode : fids
 # train_which : 'discriminator'
 
 # sampling stuff
