@@ -1,16 +1,14 @@
 logs/
 data/
 
-logs
-logs_train
-logs_eval
-logs_both
+gan_zoo
+
+old
 
 metrics/*
 !metrics/fid.py
 
 swc_sshfs/
-spectral_normalization/
 
 
 __pycache__/

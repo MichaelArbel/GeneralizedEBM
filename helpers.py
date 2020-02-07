@@ -42,6 +42,7 @@ def get_data_loader(args):
         n_classes=10
         testset = CIFAR10(root='./data', train=False, download=True, transform=transform_test)
         testloader = torch.utils.data.DataLoader(testset, batch_size=args.b_size, shuffle=False, num_workers=args.num_workers)
+        
     elif args.dataset == 'imagenet32' or args.dataset=='imagenet64':
         # normalize = transforms.Normalize(mean=[0.5,0.5,0.5],
         #                                  std=[0.5,0.5,0.5])

@@ -95,6 +95,12 @@ parser.add_argument('--with_fid', action='store_true', help='include inception s
 parser.add_argument('--fid_samples', default = 50000, type= int,  help='gpu device')
 
 
+parser.add_argument('--lmc_gamma', default=1e-2, type=float,  help='gpu device')
+parser.add_argument('--lmc_kappa', default=4e-2, type=float,  help='gpu device')
+
+parser.add_argument('--num_lmc_fid_steps', default=160, type=int)
+
+
 
 
 args = parser.parse_args()

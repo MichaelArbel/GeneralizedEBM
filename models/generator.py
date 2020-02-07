@@ -86,8 +86,8 @@ class Generator(nn.Module):
 
             self.dense = nn.Linear(self.z_dim, 4 * 4 * self.gen_size)
             self.final = nn.Conv2d(self.gen_size, nc, 3, stride=1, padding=1)
-            nn.init.xavier_uniform(self.dense.weight.data, 1.)
-            nn.init.xavier_uniform(self.final.weight.data, 1.)
+            nn.init.xavier_uniform_(self.dense.weight.data, 1.)
+            nn.init.xavier_uniform_(self.final.weight.data, 1.)
 
             self.main = nn.Sequential(
                 ResBlockGenerator(self.gen_size, self.gen_size, stride=2),
@@ -131,8 +131,8 @@ class ResBlockGenerator(nn.Module):
 
         self.conv1 = nn.Conv2d(in_channels, out_channels, 3, 1, padding=1)
         self.conv2 = nn.Conv2d(out_channels, out_channels, 3, 1, padding=1)
-        nn.init.xavier_uniform(self.conv1.weight.data, 1.)
-        nn.init.xavier_uniform(self.conv2.weight.data, 1.)
+        nn.init.xavier_uniform_(self.conv1.weight.data, 1.)
+        nn.init.xavier_uniform_(self.conv2.weight.data, 1.)
 
         self.model = nn.Sequential(
             nn.BatchNorm2d(in_channels),
