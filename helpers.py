@@ -19,7 +19,8 @@ import torch.optim as optim
 
 from models.generator import Generator
 from models.discriminator import Discriminator
-import losses
+
+import compute as cp
 
 import pdb
 import time
@@ -51,15 +52,15 @@ def get_data_loader(args):
 # choose loss type
 def get_loss(args):
     if args.criterion=='hinge':
-        return losses.hinge
+        return cp.hinge
     elif args.criterion=='wasserstein':
-        return losses.wasserstein
+        return cp.wasserstein
     elif args.criterion=='logistic':
-        return losses.logistic
+        return cp.logistic
     elif args.criterion=='kale':
-        return losses.kale
+        return cp.kale
     elif args.criterion=='kale-nlp':
-        return losses.kale
+        return cp.kale
 
 # choose the optimizer
 def get_optimizer(args, net_type, params):
