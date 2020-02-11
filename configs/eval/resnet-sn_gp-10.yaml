@@ -1,0 +1,38 @@
+b_size: 128
+dataset: cifar10
+
+total_epochs: 100
+
+g_model : 'dcgan'
+d_model : 'resnet-sn'
+
+optimizer: Adam
+
+criterion : 'kale'
+
+# load pretrained weights
+# use a single generator for all tests
+d_path : 'logs/resnet-sn_gp-10/train/checkpoints/d_98.pth'
+g_path : 'weights/dcgan/netG_epoch_199.pth'
+
+log_dir : 'logs'
+log_name : 'resnet-sn_gp-10'
+
+penalty_type : 'gradient_l2'
+penalty_lambda : 10
+
+
+# train
+mode : eval
+with_fid : True
+
+# sampling stuff
+Z_dim : 100
+bb_size : 1000
+log_to_file : true
+
+
+
+seed : 0
+
+

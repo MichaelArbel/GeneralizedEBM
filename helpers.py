@@ -25,6 +25,7 @@ import pdb
 import time
 
 
+# choose dataloaders for pytorch
 def get_data_loader(args):
     transform_train = transforms.Compose([
         transforms.ToTensor(),
@@ -42,32 +43,12 @@ def get_data_loader(args):
         n_classes=10
         testset = CIFAR10(root='./data', train=False, download=True, transform=transform_test)
         testloader = torch.utils.data.DataLoader(testset, batch_size=args.b_size, shuffle=False, num_workers=args.num_workers)
-        
-    elif args.dataset == 'imagenet32' or args.dataset=='imagenet64':
-        # normalize = transforms.Normalize(mean=[0.5,0.5,0.5],
-        #                                  std=[0.5,0.5,0.5])
-        # from imagenet import Imagenet32
 
-        # spatial_size = 32
-        # if args.dataset=='imagenet64':
-        #     spatial_size = 64
-        # n_classes = 1000
-
-        # trainset = Imagenet32(args.path_train, transform=transforms.Compose(transforms_train), sz=spatial_size)
-        # valset = Imagenet32(args.path_test, transform=transforms.Compose(transforms_test), sz=spatial_size)
-
-        # trainloader = torch.utils.data.DataLoader(trainset, batch_size=args.b_size, shuffle=True, num_workers=args.num_workers)
-        # testloader = torch.utils.data.DataLoader(valset,batch_size=args.b_size, shuffle=False,num_workers=args.num_workers)
-        # n_classes = 1000
-
-        raise NotImplementedError
     else:
         raise NotImplementedError
     return trainloader,testloader
 
-
-
-
+# choose loss type
 def get_loss(args):
     if args.criterion=='hinge':
         return losses.hinge
@@ -79,14 +60,6 @@ def get_loss(args):
         return losses.kale
     elif args.criterion=='kale-nlp':
         return losses.kale
-
-# def get_reg(args, model):
-#   if args.regularizer=='L2':
-#       return L2_reg(model,args.reg_param)
-#   elif args.regularizer=='None':
-#       return None
-#   else:
-#       return None
 
 # choose the optimizer
 def get_optimizer(args, net_type, params):
@@ -130,7 +103,7 @@ def get_net(args, net_type, device):
     return net
     
 
-
+# choose device
 def assign_device(device):
     if device >-1:
         device = 'cuda:'+str(device) if torch.cuda.is_available() and device>-1 else 'cpu'

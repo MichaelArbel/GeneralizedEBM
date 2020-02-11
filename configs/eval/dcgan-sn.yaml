@@ -19,19 +19,14 @@ log_dir : 'logs'
 log_name : 'dcgan-sn'
 
 penalty_type : 'none'
-penalty_lambda : 0.1
-with_fid : True
-
-gradient_clip_norm : 0
 
 # train
 mode : eval
+with_fid : True
 
 # sampling stuff
 Z_dim : 100
-sample_types : 'none,lmc'
 bb_size : 1000
-lmc_sample_size : 1
 
 log_to_file : true
 

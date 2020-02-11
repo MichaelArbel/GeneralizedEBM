@@ -76,7 +76,6 @@ class Generator(nn.Module):
 
 
         elif nn_type == 'resnet-sn':
-
             # adapted from https://github.com/christiancosgrove/pytorch-spectral-normalization-gan
             # with spectral norm from pytorch
 
@@ -113,14 +112,7 @@ class Generator(nn.Module):
 
 
 
-
-
-
-
-
-
 ### helpers
-
 
 # for spectral_resnet
 

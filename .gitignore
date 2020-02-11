@@ -1,14 +1,13 @@
 logs/
 data/
+scripts/
 
-gan_zoo
+*internal
 
-old
-
-metrics/*
-!metrics/fid.py
 
 swc_sshfs/
 
-
 __pycache__/
+
+playground/
+playground.py

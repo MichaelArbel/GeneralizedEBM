@@ -19,7 +19,6 @@ log_dir : 'logs'
 log_name : 'dcgan'
 
 penalty_type : 'none'
-penalty_lambda : 0.01
 with_fid : True
 
 # train
@@ -27,9 +26,7 @@ mode : fids
 
 # sampling stuff
 Z_dim : 100
-sample_types : 'none,lmc'
 bb_size : 1000
-lmc_sample_size : 1
 
 log_to_file : true
 

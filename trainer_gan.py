@@ -1,6 +1,5 @@
 import math
 
-#import tensorflow as tf
 import torch
 import torch.nn as nn
 
@@ -9,7 +8,6 @@ import numpy as np
 # Plotting library.
 from matplotlib import pyplot as plt
 import matplotlib.gridspec as gridspec
-#import seaborn as sns
 
 import csv
 import sys
@@ -51,7 +49,6 @@ class Trainer(object):
 
         self.with_fid = args.with_fid
         self.mode = args.mode
-        self.lmc_sample_size = args.lmc_sample_size
         self.sample_types = self.args.sample_types.split(',')
         self.build_model()
         
@@ -75,11 +72,11 @@ class Trainer(object):
         self.generator = hp.get_net(self.args, 'generator', self.device)
         self.discriminator = hp.get_net(self.args, 'discriminator', self.device)
 
-        # load models if path exists, define log partition and add to discriminator
+        # load models if path exists, define log partition if using kale and add to discriminator
         self.d_params = list(filter(lambda p: p.requires_grad, self.discriminator.parameters()))
-        if len(self.args.g_path) > 0:
+        if self.args.g_path is not None:
             self.load_generator()
-        if len(self.args.d_path) > 0:
+        if self.args.d_path is not None:
             self.load_discriminator()
             if self.args.criterion == 'kale':
                 self.d_params.append(self.log_partition)
@@ -124,15 +121,10 @@ class Trainer(object):
             self.log_partition = d_model['log_partition']
 
 
-
     # model training functions
 
     # just train the thing
     def train(self):
-        if len(self.args.d_path) > 0:
-            self.load_discriminator()
-        if len(self.args.g_path) > 0:
-            self.load_generator()
         for epoch in range(self.args.total_epochs):
             print(f'Epoch: {epoch}')
             # only train specified network(s)
@@ -167,7 +159,7 @@ class Trainer(object):
             if batch_idx % 100 == 0 and batch_idx > 0:
                 ag = np.asarray(accum_loss_g)
                 ad = np.asarray(accum_loss_d)
-                print(f' gen loss: {ag.mean()} / {ag.std()}, disc loss: {ad.mean()} / {ad.std()}')
+                print(f' gen loss (mean|std): {ag.mean()} | {ag.std()}, disc loss (mean|std): {ad.mean()} | {ad.std()}')
                 accum_loss_g = []
                 accum_loss_d = []
 
@@ -184,7 +176,7 @@ class Trainer(object):
             accum_loss.append(self.d_loss.item())
             if batch_idx % 100 == 0 and batch_idx > 0:
                 ad = np.asarray(accum_loss)
-                print(f' critic loss: {ad.mean()} / {ad.std()}')
+                print(f' critic loss (mean|std): {ad.mean()} | {ad.std()}')
                 accum_loss = []
         if self.args.use_scheduler:
             self.scheduler_d.step()
@@ -203,7 +195,7 @@ class Trainer(object):
         fake_data = self.generator(Z)
         true_results = self.discriminator(data)
         fake_results = self.discriminator(fake_data)
-        if self.args.criterion=='kale':
+        if self.args.criterion == 'kale':
             true_results = true_results + self.log_partition
             fake_results = fake_results + self.log_partition
         # calculate loss and propagate
@@ -214,11 +206,6 @@ class Trainer(object):
         total_loss = loss + penalty
         
         total_loss.backward()
-        if self.args.gradient_clip_norm != 0:
-            if net_type == 'discriminator':
-                nn.utils.clip_grad_norm_(self.d_params, self.args.gradient_clip_norm)
-            elif net_type == 'generator':
-                nn.utils.clip_grad_norm_(self.generator.parameters(), self.args.gradient_clip_norm)
         optimizer.step()
         return total_loss
 
@@ -232,30 +219,33 @@ class Trainer(object):
         self.load_discriminator()
         self.sample_images(epoch=self.args.seed)
 
-    # samples 64 images according to all types in the the sample_type argument, saves them
+    # samples 64 images, saves them
     def sample_images(self, epoch=0):
-        if self.args.log_nothing:
+        if self.args.save_nothing:
             return
         self.discriminator.eval()
         self.generator.eval()
         normal_gen = hp.get_normal(self.args, self.device, 64)
         prior_z = normal_gen.sample()
+        print(f'==> Producing 64 samples...')
+        posterior_z = cp.sample_posterior(
+            prior_z=prior_z,
+            g=self.generator,
+            h=self.discriminator,
+            device=self.device,
+            T=self.args.num_lmc_steps,
+            extract_every=0,
+            kappa=self.args.lmc_kappa,
+            gamma=self.args.lmc_gamma
+            )
+        z_dic = {
+            'prior': prior_z,
+            'posterior': posterior_z
+        }
         samples_dic = {}
-        for s in self.sample_types:
-            print(f'==> Producing 64 samples of type {s}...')
-            posterior_z = cp.sample_posterior(
-                prior_z=prior_z,
-                s_type=s,
-                g=self.generator,
-                h=self.discriminator,
-                device=self.device,
-                n_samples=1,
-                burn_in=80,
-                kappa=self.args.lmc_kappa,
-                gamma=self.args.lmc_gamma
-                )
-            samples = self.generator(posterior_z).cpu().detach().numpy()[:64]
-            samples_dic[s] = []
+        for key, z in z_dic.items():
+            samples = self.generator(z).cpu().detach().numpy()[:64]
+            samples_dic[key] = []
             fig = plt.figure(figsize=(8, 8))
             gs = gridspec.GridSpec(8, 8)
             gs.update(wspace=0.05, hspace=0.05)
@@ -266,17 +256,18 @@ class Trainer(object):
                 ax.set_yticklabels([])
                 ax.set_aspect('equal')
                 sample_t = sample.transpose((1,2,0)) * 0.5 + 0.5
-                samples_dic[s].append(sample_t)
+                samples_dic[key].append(sample_t)
                 plt.imshow(sample_t)
             plt.savefig(
-                os.path.join(self.samples_dir, f'{str(epoch).zfill(3)}-{s}.png'),
+                os.path.join(self.samples_dir, f'{str(epoch).zfill(3)}-{key}.png'),
                 bbox_inches='tight')
             plt.close(fig)
         # store sample image data so we can use it again later maybe
-        with open(os.path.join(self.samples_dir, f'{str(epoch).zfill(3)}-data.pkl'), 'wb') as f:
-            pkl.dump(samples_dic, f)
+        if not self.args.save_nothing:
+            with open(os.path.join(self.samples_dir, f'{str(epoch).zfill(3)}-data.pkl'), 'wb') as f:
+                pkl.dump(samples_dic, f)
 
-    # helper function meant for lmcs
+    # helper function meant for lmcs, saves images
     def save_images(self, images, epoch=0):
         samples = images[:64].cpu().detach().numpy()
         fig = plt.figure(figsize=(8, 8))
@@ -338,7 +329,7 @@ class Trainer(object):
             }
             print(f'{s}: FID mean: {mean}, std: {std}')
 
-        if not os.path.isfile(kf_path) and not self.args.log_nothing:
+        if not os.path.isfile(kf_path) and not self.args.save_nothing:
             with open(kf_path, 'w') as f:
                 json.dump([kales, fids], f, indent=2)
 
@@ -356,7 +347,7 @@ class Trainer(object):
             s_types = self.sample_types
 
         kales, mean_fake, images, Zs = self.acc_stats(s_types, eval_id)
-        if not self.args.log_nothing:
+        if not self.args.save_nothing:
             with open(os.path.join(save_dir, Z_name), 'wb') as f:
                 pkl.dump(Zs, f)
         fids = {}
@@ -375,8 +366,7 @@ class Trainer(object):
     def acc_stats(self, s_types, eval_id=0):
         # change as necessary depending on the GPU
         bb_size = self.args.bb_size
-        lmc_sample_size = self.args.lmc_sample_size
-        n_batches = int(self.args.fid_samples / bb_size / lmc_sample_size) + 1
+        n_batches = int(self.args.fid_samples / bb_size) + 1
 
         # contribution of fake generated data
         mean_fake = {}
@@ -403,18 +393,23 @@ class Trainer(object):
                 if b % 5 == 0:
                     print(f'  Starting batch {b+1}/{n_batches}, avg time {avg_time}s')
                 if m < self.args.fid_samples:
-                    bl = min(self.args.fid_samples - m, bb_size * lmc_sample_size)
+                    bl = min(self.args.fid_samples - m, bb_size)
                     prior_Z = normal_gen.sample()
                     st = time.time()
                     if not f_exists or s not in Z_keys:
-                        posterior_Z = cp.sample_posterior(
-                            prior_z=prior_Z,
-                            s_type=s, 
-                            g=self.generator,
-                            h=self.discriminator,
-                            device=self.device,
-                            n_samples=lmc_sample_size
-                        )
+                        if s == 'lmc':
+                            posterior_Z = cp.sample_posterior(
+                                prior_z=prior_Z,
+                                g=self.generator,
+                                h=self.discriminator,
+                                device=self.device,
+                                T=self.args.num_lmc_steps,
+                                extract_every=0,
+                                kappa=self.args.lmc_kappa,
+                                gamma=self.args.lmc_gamma
+                            )
+                        else:
+                            posterior_Z = prior_Z
                     else:
                         posterior_Z = Zs[s][m:m+bl].to(self.device)
                     et = time.time()
@@ -458,14 +453,13 @@ class Trainer(object):
         return KALE, mean_fake, images, Zs
 
 
-
         # for finding the FID scores for the same initial Z, over time
-        def get_lmc_fids(self):
+        def get_fids(self):
 
             assert self.with_fid
             fname = os.path.join(self.log_dir, f'lmc_data_{self.run_id}.pkl')
 
-            total_time = self.args.num_lmc_fid_steps
+            total_time = self.args.num_lmc_steps
             extract_every = 10
 
             if os.path.isfile(fname):
@@ -474,8 +468,7 @@ class Trainer(object):
                 print(f'Loaded existing images from {fname}')
             else:
                 bb_size = self.args.bb_size
-                lmc_sample_size = self.args.lmc_sample_size
-                n_batches = int(self.args.fid_samples / bb_size / lmc_sample_size) + 1
+                n_batches = int(self.args.fid_samples / bb_size) + 1
 
                 m = 0
                 normal_gen = torch.distributions.Normal(torch.zeros((bb_size, self.args.Z_dim)).to(self.device),1)
@@ -485,16 +478,14 @@ class Trainer(object):
                     if b % 5 == 0:
                         print(f'  Starting batch {b+1}/{n_batches}')
                     if m < self.args.fid_samples:
-                        bl = min(self.args.fid_samples - m, bb_size * lmc_sample_size)
+                        bl = min(self.args.fid_samples - m, bb_size)
                         prior_Z = normal_gen.sample()
                         posterior_Zs = cp.sample_posterior(
                             prior_z=prior_Z,
-                            s_type='lmc', 
                             g=self.generator,
                             h=self.discriminator,
                             device=self.device,
-                            n_samples=1,
-                            burn_in=total_time,
+                            T=total_time,
                             extract_every=extract_every,
                             kappa=self.args.lmc_kappa,
                             gamma=self.args.lmc_gamma
@@ -527,7 +518,7 @@ class Trainer(object):
 
     # save model parameters from a checkpoint, only used when training
     def save_checkpoint(self, epoch):
-        if self.args.log_nothing:
+        if self.args.save_nothing:
             return
         if self.args.train_which != 'generator':
             d_dict = self.discriminator.state_dict()
@@ -546,8 +537,9 @@ class Trainer(object):
 
 # helper functions
 
+# make logging directories
 def init_logs(args, run_id):
-    if args.log_nothing:
+    if args.save_nothing:
         return None, None, None
     log_name = args.log_name
     log_dir = os.path.join(args.log_dir, log_name, args.mode)
