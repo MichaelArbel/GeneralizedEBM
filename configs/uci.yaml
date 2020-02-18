@@ -3,19 +3,16 @@ dataset: cifar10
 
 total_epochs: 1000
 
-log_dir : '/nfs/gatsbystor/michaela/projects/kale/exp/uci_best'
+log_dir : '/nfs/gatsbystor/michaela/projects/kale/exp/uci_test'
 optimizer: Adam
 
 criterion : 'kale'
-
-#data_name : 'redwine' # 'whitewine', 'parkinsons', 'gas', 'power', 'hepmass', 'minibone'
-#data_name : 'minibone'
+#data_name : 'redwine'
 problem : 'unconditional'
 penalty_lambda : 0.1
-#penalty_lambda : 0.09
 penalty_type: 'gradients_l2'
 scheduler : 'MultiStepLR'
-Z_factor : 1
+Z_factor : 20
 generator : 'made'
 no_progress_bar : True
 penalty_g_lambda : 0.0001

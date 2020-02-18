@@ -19,12 +19,13 @@ import torch.optim as optim
 
 from models.generator import Generator
 from models.discriminator import Discriminator
+from models import energy_model
 
 import compute as cp
 
-import pdb
 import time
 
+from dataloader import load_data, PrepareUCIData
 
 # choose dataloaders for pytorch
 def get_data_loader(args):
@@ -48,6 +49,27 @@ def get_data_loader(args):
     else:
         raise NotImplementedError
     return trainloader,testloader
+
+
+def get_data_loader_energy(args):
+    p = load_data(args.data_name)
+
+    train_data = p.data
+    test_data = p.test_data
+    valid_data = p.valid_data
+    log_volume =  np.sum(np.log(p.s))
+    train_set = PrepareUCIData(train_data)
+    test_set = PrepareUCIData(test_data)
+    valid_set = PrepareUCIData(valid_data)
+
+    trainloader = torch.utils.data.DataLoader(train_set, batch_size=args.b_size, shuffle=True, num_workers=args.num_workers)
+    testloader = torch.utils.data.DataLoader(test_set, batch_size=args.b_size, shuffle=True, num_workers=args.num_workers)
+    validloader = torch.utils.data.DataLoader(valid_set, batch_size=args.b_size, shuffle=True, num_workers=args.num_workers)
+
+    return trainloader,testloader,validloader, log_volume
+
+
+
 
 # choose loss type
 def get_loss(args):
@@ -94,6 +116,14 @@ def get_scheduler(args,optimizer):
 def get_normal(args, device, b_size):
     return torch.distributions.Normal(torch.zeros([b_size, args.Z_dim]).to(device), 1)
 
+# return the distribution of the latent noise
+def get_latent(args,dim,device):
+    dim = int(dim)
+    if args.latent_noise=='gaussian':
+        return torch.distributions.MultivariateNormal(torch.zeros(dim).to(device),torch.eye(dim).to(device))
+    elif args.latent_noise=='uniform':
+        return torch.distributions.Uniform(torch.zeros(dim).to(device),torch.ones(dim).to(device))
+
 
 # initialize neural net corresponding to type
 def get_net(args, net_type, device):
@@ -103,6 +133,19 @@ def get_net(args, net_type, device):
         net = Generator(nz=args.Z_dim, nn_type=args.g_model).to(device)
     return net
     
+
+# return a discriminator for the energy model
+def get_discriminator(args,input_dims,device):
+    return energy_model.Discriminator(input_dims).to(device)
+
+# return the base for the energy model
+def get_base_energy(args,input_dims,device):
+    if args.generator == 'gaussian':
+        net = energy_model.GaussianGenerator(input_dims).to(device)
+    elif args.generator == 'made':
+        net = energy_model.MADEGenerator(input_dims).to(device)
+    return net
+
 
 # choose device
 def assign_device(device):

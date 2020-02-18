@@ -88,10 +88,7 @@ exp = Trainer(args)
 if args.load_pre_trained:
 	exp.eval_pre_trained()
 else:
-	#exp.cross_train()
-	exp.train()
-#exp.compute_inception_stats()
-#test_acc = exp.test()
+	exp.cross_train()
 print('Training completed!')
 
 

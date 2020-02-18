@@ -56,7 +56,7 @@ class Trainer(object):
 
 
 	def build_model(self):		
-		self.train_loader, self.test_loader, self.valid_loader, self.log_volume = get_data_loader(self.args)
+		self.train_loader, self.test_loader, self.valid_loader, self.log_volume = get_data_loader_energy(self.args)
 		self.log_volume = 0.
 		if self.args.problem=='conditional':
 			dims = np.array([self.train_loader.dataset.y.shape[1],self.train_loader.dataset.X.shape[1]])
@@ -65,7 +65,7 @@ class Trainer(object):
 
 		self.discriminator = get_discriminator(self.args, np.sum(dims), self.device)
 		trainable_params = list(filter(lambda p: p.requires_grad, self.discriminator.parameters()))
-		self.generator = get_generator(self.args, dims, self.device)
+		self.generator = get_base_energy(self.args, dims, self.device)
 		
 		if self.args.criterion=='kale':
 			self.log_partition = nn.Parameter(torch.tensor(0.).to(self.device), requires_grad=True)
@@ -74,8 +74,9 @@ class Trainer(object):
 			self.log_partition = 0.
 		self.dim_latent = dims[0]
 		self.noise_gen = get_latent(self.args,dims[0], self.device)
-		self.optim_d = get_optimizer(self.args,trainable_params)
-		self.optim_g = get_optimizer(self.args,self.generator.parameters())
+		net_type = 'discriminator'
+		self.optim_d = get_optimizer(self.args,net_type,trainable_params)
+		self.optim_g = get_optimizer(self.args,net_type,self.generator.parameters())
 		self.scheduler_d = get_scheduler(self.args, self.optim_d)
 		self.scheduler_g = get_scheduler(self.args, self.optim_g)
 		self.loss = get_loss(self.args)
@@ -89,10 +90,6 @@ class Trainer(object):
 		self.best_out = None
 		self.counter_g = 0
 		self.counter_d = 0
-		#path  = get_fid_stats_pytorch(self.args.dataset)
-		#block_idx = InceptionV3.BLOCK_INDEX_BY_DIM[2048]
-
-		#self.fid_model = InceptionV3([block_idx]).to(self.device)
 
 	def _gradient_penalty(self, real_data, generated_data):
 		batch_size = real_data.size()[0]
@@ -122,7 +119,6 @@ class Trainer(object):
 		# the square root, so manually calculate norm and add epsilon
 		gradients_norm = torch.sum(gradients ** 2, dim=1)
 
-		# Return gradient penalty
 		return gradients_norm.mean()
 
 
@@ -140,8 +136,6 @@ class Trainer(object):
 				len_params += np.sum(np.array(list(params.shape)))
 			penalty = penalty/len_params
 			g_penalty = self._gradient_penalty(true_data,fake_data)
-			#ratio = penalty/(g_penalty+1e-6)
-			#ratio = ratio.detach()
 			penalty = penalty+ g_penalty
 		return penalty
 
@@ -185,29 +179,6 @@ class Trainer(object):
 			loss.backward()
 			optimizer.step()
 		return loss
-
-	def train_epoch(self,epoch):
-		if self.counter==0:
-			n_iter_d = self.args.n_iter_d_init
-		else:
-			n_iter_d = self.args.n_iter_d
-		for batch_idx, (X, y) in enumerate(self.train_loader):
-			X,y = X.to(self.device), y.to(self.device)
-			if self.args.problem=='unconditional':
-				y=None
-			self.counter += 1
-			if np.mod(self.counter, n_iter_d)==0:
-				self.g_loss = self.iteration(X,y=y,loss_type='generator')
-			else:
-				self.d_loss = self.iteration(X,y=y,loss_type='discriminator')
-			if batch_idx % 100 == 0:
-				self.generator.Sigma = None
-				if self.args.problem=='unconditional':
-					neg_log_density = - self.generator.log_density(X)
-				else:
-					neg_log_density = - self.generator.log_density(y,X)
-				neg_log_likelihood = neg_log_density.mean() + self.d_loss +self.log_volume
-				print(' Neg likelihoood: ' +  str(neg_log_likelihood.item()))
 
 	def train_discriminator(self,epoch):
 		for batch_idx, (X,y) in enumerate(self.train_loader):
@@ -259,7 +230,7 @@ class Trainer(object):
 			self.g_loss.backward()
 			self.optim_g.step()
 			if batch_idx % 100 == 0:
-				print(' Neg likelihoood: g_loss: ' +  str(self.g_loss.item()))
+				print('g_loss: ' +  str(self.g_loss.item()))
 		val_g_loss = 0.
 		num_el = 0
 		for batch_idx, (X,y) in enumerate(self.valid_loader):
@@ -271,7 +242,7 @@ class Trainer(object):
 		
 				
 		val_g_loss = val_g_loss/num_el
-		print(' Neg likelihoood: g_loss: ' +  str(val_g_loss.item()))
+		print(' Neg likelihoood:  ' +  str(val_g_loss.item()))
 		if self.best_out is None:
 			self.best_out = val_g_loss
 		if val_g_loss < self.best_out:
@@ -293,43 +264,21 @@ class Trainer(object):
 
 
 	def train(self):
+		self.counter_g = 0
 		best_out = None
 		for epoch in range(self.args.total_epochs):
 			
 			print('Training the base...')
 			print('Epoch: ' + str(epoch))
-			self.train_epoch(epoch)
+			self.train_generator(epoch)
 			if np.mod(epoch,10)==0:
 				best_out = self.get_best_dic(epoch,best_out)
 			#self.sample_images(epoch)
 			print(best_out)
-		self.save_checkpoint(epoch)
-		print('Done training the base, learning MLE')
-		for epoch in range(self.args.total_epochs):
-			print('Epoch: ' + str(epoch))
-			self.train_discriminator(epoch)
-			if np.mod(epoch,10)==0:
-				best_out = self.get_best_dic(epoch,best_out)
-			print(best_out)
-		self.save_checkpoint(epoch)
-		#out = self.evaluate(epoch,10)
-		return best_out
-
-
-	def train(self):
-		best_out = None
-		self.counter_g = 0
-		#for epoch in range(self.args.total_epochs):
-		for epoch in range(46):
-			print('Training the base...')
-			print('Epoch: ' + str(epoch))
-			self.train_generator(epoch)
-			if self.counter_g > 30:
+			if self.counter_g >30:
 				break
 		self.save_checkpoint(epoch)
 		print('Done training the base, learning MLE')
-		self.get_best_dic(0,best_out)
-		self.counter_d = 0
 		for epoch in range(self.args.total_epochs):
 			print('Epoch: ' + str(epoch))
 			self.train_discriminator(epoch)
@@ -337,31 +286,14 @@ class Trainer(object):
 				best_out = self.get_best_dic(epoch,best_out)
 			print(best_out)
 		self.save_checkpoint(epoch)
-		#out = self.evaluate(epoch,10)
 		return best_out
 
-	# def train(self):
-	# 	best_out = None
-	# 	self.args.g_path = '/nfs/gatsbystor/michaela/projects/kale/exp/uci_best/minibone/checkpoints/gen_137'
-	# 	self.load_generator()
-	# 	self.get_best_dic(0,best_out)
-	# 	print('Done training the base, learning MLE')
-	# 	for epoch in range(self.args.total_epochs):
-	# 		print('Epoch: ' + str(epoch))
-	# 		self.train_discriminator(epoch)
-	# 		if np.mod(epoch,10)==0:
-	# 			best_out = self.get_best_dic(epoch,best_out)
-	# 		print(best_out)
-	# 	self.save_checkpoint(epoch)
-	# 	out = self.evaluate(epoch,20)
-	# 	print( 'last eval:')
-	# 	print(out)
-	# 	return best_out
 
 
 	def cross_train(self):
 		out = []
-		for seed in range(20):
+		for i, seed in enumerate(range(15)):
+			print( ' iteration : '+str(i) )
 			self.args.seed = seed
 			self.build_model()
 			out.append(self.train())
@@ -405,11 +337,8 @@ class Trainer(object):
 
 		out = {}
 		out['neg_kale_test'] = neg_kale_test
-		#out['neg_kale_std_test'] = neg_kale_std_test
 		out['neg_kale'] = neg_kale
-		#out['neg_kale_std'] = neg_kale_std
 		out['neg_kale_valid'] = neg_kale_valid
-		#out['neg_kale_std_valid'] = neg_kale_std_valid
 		return out
 
 	def acc_stats(self,data_loader,num_eval=1):
@@ -492,19 +421,6 @@ def assign_device(device):
 	elif device==-2:
 		device = 'cpu'
 	return device
-
-def compute_fid(mu1, sigma1, mu2, sigma2):
-	# calculate activations
-	# calculate sum squared difference between means
-	ssdiff = numpy.sum((mu1 - mu2)**2.0)
-	# calculate sqrt of product between cov
-	covmean = sqrtm(sigma1.dot(sigma2))
-	# check and correct imaginary numbers from sqrt
-	if iscomplexobj(covmean):
-		covmean = covmean.real
-	# calculate score
-	fid = ssdiff + trace(sigma1 + sigma2 - 2.0 * covmean)
-	return fid
 
 
 
