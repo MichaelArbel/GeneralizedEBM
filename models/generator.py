@@ -9,6 +9,9 @@ class Generator(nn.Module):
 
         self.nn_type = nn_type
 
+        nc = 3
+        ngf = 64
+
         # z_dim is latent variable dimension for generator
         self.z_dim = nz
 
@@ -49,7 +52,7 @@ class Generator(nn.Module):
                 nn.Tanh()
             )
 
-        elif nn_type == 'spectral-dcgan':
+        elif nn_type == 'dcgan-sn':
             # adapted from https://github.com/christiancosgrove/pytorch-spectral-normalization-gan
             # with spectral norm from pytorch
 
@@ -72,8 +75,7 @@ class Generator(nn.Module):
             )
 
 
-        elif nn_type == 'spectral-resnet':
-
+        elif nn_type == 'resnet-sn':
             # adapted from https://github.com/christiancosgrove/pytorch-spectral-normalization-gan
             # with spectral norm from pytorch
 
@@ -83,8 +85,8 @@ class Generator(nn.Module):
 
             self.dense = nn.Linear(self.z_dim, 4 * 4 * self.gen_size)
             self.final = nn.Conv2d(self.gen_size, nc, 3, stride=1, padding=1)
-            nn.init.xavier_uniform(self.dense.weight.data, 1.)
-            nn.init.xavier_uniform(self.final.weight.data, 1.)
+            nn.init.xavier_uniform_(self.dense.weight.data, 1.)
+            nn.init.xavier_uniform_(self.final.weight.data, 1.)
 
             self.main = nn.Sequential(
                 ResBlockGenerator(self.gen_size, self.gen_size, stride=2),
@@ -101,7 +103,7 @@ class Generator(nn.Module):
 
 
     def forward(self, input):
-        if self.nn_type in ['dcgan', 'spectral-dcgan']:
+        if self.nn_type in ['dcgan', 'dcgan-sn']:
             output = self.main(input.view(-1, self.z_dim, 1, 1))
         elif self.nn_type in ['spectral-resnet']:
             output = self.main(self.dense(input).view(-1, self.gen_size, 4, 4))
@@ -110,14 +112,7 @@ class Generator(nn.Module):
 
 
 
-
-
-
-
-
-
 ### helpers
-
 
 # for spectral_resnet
 
@@ -128,8 +123,8 @@ class ResBlockGenerator(nn.Module):
 
         self.conv1 = nn.Conv2d(in_channels, out_channels, 3, 1, padding=1)
         self.conv2 = nn.Conv2d(out_channels, out_channels, 3, 1, padding=1)
-        nn.init.xavier_uniform(self.conv1.weight.data, 1.)
-        nn.init.xavier_uniform(self.conv2.weight.data, 1.)
+        nn.init.xavier_uniform_(self.conv1.weight.data, 1.)
+        nn.init.xavier_uniform_(self.conv2.weight.data, 1.)
 
         self.model = nn.Sequential(
             nn.BatchNorm2d(in_channels),

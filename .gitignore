@@ -1,11 +1,13 @@
 logs/
 data/
+scripts/
 
-metrics/*
-!metrics/fid.py
+*internal
+
 
 swc_sshfs/
-old/
-
 
 __pycache__/
+
+playground/
+playground.py

@@ -1,22 +1,26 @@
 import numpy as np
 
+import torch
 from torch import nn
+import math
 
 import torch.nn.functional as F
 
+# official implementation
 from torch.nn.utils import spectral_norm as sn_official
+spectral_norm = sn_official
 
-from old.spectral_normalization import SpectralNorm as sn_online
 
+# much of this code taken from https://github.com/christiancosgrove/pytorch-spectral-normalization-gan
 
 
 class Discriminator(nn.Module):
-    def __init__(self, nn_type='vanilla', **kwargs):
+    def __init__(self, nn_type='dcgan', **kwargs):
         super().__init__()
 
         self.nn_type = nn_type
 
-        if nn_type == 'vanilla':
+        if nn_type == 'dcgan':
             # adapted from pytorch website
             # https://pytorch.org/tutorials/beginner/dcgan_faces_tutorial.html#implementation
 
@@ -59,7 +63,8 @@ class Discriminator(nn.Module):
                 nn.Sigmoid()
             )
 
-        elif nn_type == 'vanilla-no-sigmoid':
+        elif nn_type == 'dcgan-ns':
+            # dcgan, but without sigmoid for the last layer
             nc = 3
             ndf = 64
             leak = 0.2
@@ -76,15 +81,12 @@ class Discriminator(nn.Module):
                 # nn.Conv2d(in_channels, out_channels, kernel_size, stride, padding, dilation...)
                 nn.Conv2d(nc, ndf, 4, 2, 1, bias=False),
                 nn.LeakyReLU(leak, inplace=True),
-                # state size. (ndf) x 32 x 32
                 nn.Conv2d(ndf, ndf * 2, 4, 2, 1, bias=False),
                 nn.BatchNorm2d(ndf * 2),
                 nn.LeakyReLU(leak, inplace=True),
-                # state size. (ndf*2) x 16 x 16
                 nn.Conv2d(ndf * 2, ndf * 4, 4, 2, 1, bias=False),
                 nn.BatchNorm2d(ndf * 4),
                 nn.LeakyReLU(leak, inplace=True),
-                # state size. (ndf*4) x 8 x 8
                 nn.Conv2d(ndf * 4, ndf * 8, 4, 2, 1, bias=False),
                 nn.BatchNorm2d(ndf * 8),
                 nn.LeakyReLU(leak, inplace=True),
@@ -92,12 +94,11 @@ class Discriminator(nn.Module):
                 #nn.Conv2d(ndf * 8, 1, 4, 1, 0, bias=False),
                 # change documented at https://github.com/pytorch/examples/issues/486
                 nn.Conv2d(ndf * 8, 1, 2, 2, 0, bias=False)
-                #nn.Sigmoid()
             )
 
-        elif nn_type == 'spectral-dcgan':
+        elif nn_type == 'dcgan-sn':
             # adapted from https://github.com/christiancosgrove/pytorch-spectral-normalization-gan
-            # with spectral norm from pytorch
+            # dcgan with spectral norm from pytorch
 
             # defaults
             nc = 3
@@ -111,8 +112,6 @@ class Discriminator(nn.Module):
                 ndf = kwargs['ndf']
             if 'leak' in kwargs:
                 leak = kwargs['leak']
-
-            spectral_norm = sn_official
 
             self.main = nn.Sequential(
                 # layer 1
@@ -140,7 +139,7 @@ class Discriminator(nn.Module):
                 spectral_norm(nn.Linear(w_g * w_g * 512, 1))
             )
 
-        elif nn_type == 'spectral-resnet':
+        elif nn_type == 'resnet-sn':
             # adapted from https://github.com/christiancosgrove/pytorch-spectral-normalization-gan
             # with spectral norm from pytorch
 
@@ -148,17 +147,36 @@ class Discriminator(nn.Module):
             self.disc_size = 128
 
             self.fc = nn.Linear(self.disc_size, 1)
-            nn.init.xavier_uniform(self.fc.weight.data, 1.)
+            nn.init.xavier_uniform_(self.fc.weight.data, 1.)
 
             self.main = nn.Sequential(
-                FirstResBlockDiscriminator(nc, self.disc_size, stride=2),
-                ResBlockDiscriminator(self.disc_size, self.disc_size, stride=2),
-                ResBlockDiscriminator(self.disc_size, self.disc_size),
-                ResBlockDiscriminator(self.disc_size, self.disc_size),
+                FirstResBlockDiscriminator(nc, self.disc_size, stride=2, sn=1),
+                ResBlockDiscriminator(self.disc_size, self.disc_size, stride=2, sn=1),
+                ResBlockDiscriminator(self.disc_size, self.disc_size, sn=1),
+                ResBlockDiscriminator(self.disc_size, self.disc_size, sn=1),
                 nn.ReLU(),
                 nn.AvgPool2d(8),
                 nn.Flatten(),
                 spectral_norm(self.fc)
+            )
+
+        elif nn_type == 'resnet':
+            # same as above, but without the spectral norm
+            nc = 3
+            self.disc_size = 128
+
+            self.fc = nn.Linear(self.disc_size, 1)
+            nn.init.xavier_uniform_(self.fc.weight.data, 1.)
+
+            self.main = nn.Sequential(
+                FirstResBlockDiscriminator(nc, self.disc_size, stride=2, sn=0),
+                ResBlockDiscriminator(self.disc_size, self.disc_size, stride=2, sn=0),
+                ResBlockDiscriminator(self.disc_size, self.disc_size, sn=0),
+                ResBlockDiscriminator(self.disc_size, self.disc_size, sn=0),
+                nn.ReLU(),
+                nn.AvgPool2d(8),
+                nn.Flatten(),
+                self.fc
             )
 
         else:
@@ -167,10 +185,7 @@ class Discriminator(nn.Module):
 
 
     def forward(self, input):
-        if self.nn_type in ['spectral-resnet']:
-            output = self.main(input).view(-1, self.disc_size)
-        elif self.nn_type in ['vanilla', 'vanilla-no-sigmoid', 'spectral-dcgan']:
-            output = self.main(input)
+        output = self.main(input)
 
         return output.view(-1, 1).squeeze(1)
 
@@ -178,44 +193,50 @@ class Discriminator(nn.Module):
 
 
 
-### helpers
+### helpers, all from https://github.com/christiancosgrove/pytorch-spectral-normalization-gan
 
 
 # for the spectral resnet
 
 class ResBlockDiscriminator(nn.Module):
 
-    def __init__(self, in_channels, out_channels, stride=1):
+    def __init__(self, in_channels, out_channels, stride=1, sn=1):
         super(ResBlockDiscriminator, self).__init__()
+
+        if sn == 1:
+            spec_norm = spectral_norm
+        else:
+            def spec_norm(x):
+                return x
 
         self.conv1 = nn.Conv2d(in_channels, out_channels, 3, 1, padding=1)
         self.conv2 = nn.Conv2d(out_channels, out_channels, 3, 1, padding=1)
-        nn.init.xavier_uniform(self.conv1.weight.data, 1.)
-        nn.init.xavier_uniform(self.conv2.weight.data, 1.)
+        nn.init.xavier_uniform_(self.conv1.weight.data, 1.)
+        nn.init.xavier_uniform_(self.conv2.weight.data, 1.)
 
         if stride == 1:
             self.model = nn.Sequential(
                 nn.ReLU(),
-                spectral_norm(self.conv1),
+                spec_norm(self.conv1),
                 nn.ReLU(),
-                spectral_norm(self.conv2)
+                spec_norm(self.conv2)
                 )
         else:
             self.model = nn.Sequential(
                 nn.ReLU(),
-                spectral_norm(self.conv1),
+                spec_norm(self.conv1),
                 nn.ReLU(),
-                spectral_norm(self.conv2),
+                spec_norm(self.conv2),
                 nn.AvgPool2d(2, stride=stride, padding=0)
                 )
         self.bypass = nn.Sequential()
         if stride != 1:
 
             self.bypass_conv = nn.Conv2d(in_channels,out_channels, 1, 1, padding=0)
-            nn.init.xavier_uniform(self.bypass_conv.weight.data, np.sqrt(2))
+            nn.init.xavier_uniform_(self.bypass_conv.weight.data, np.sqrt(2))
 
             self.bypass = nn.Sequential(
-                spectral_norm(self.bypass_conv),
+                spec_norm(self.bypass_conv),
                 nn.AvgPool2d(2, stride=stride, padding=0)
             )
 
@@ -226,27 +247,35 @@ class ResBlockDiscriminator(nn.Module):
 # special ResBlock just for the first layer of the discriminator
 class FirstResBlockDiscriminator(nn.Module):
 
-    def __init__(self, in_channels, out_channels, stride=1):
+    def __init__(self, in_channels, out_channels, stride=1, sn=1):
         super(FirstResBlockDiscriminator, self).__init__()
+
+        if sn == 1:
+            spec_norm = spectral_norm
+        else:
+            def spec_norm(x):
+                return x
 
         self.conv1 = nn.Conv2d(in_channels, out_channels, 3, 1, padding=1)
         self.conv2 = nn.Conv2d(out_channels, out_channels, 3, 1, padding=1)
         self.bypass_conv = nn.Conv2d(in_channels, out_channels, 1, 1, padding=0)
-        nn.init.xavier_uniform(self.conv1.weight.data, 1.)
-        nn.init.xavier_uniform(self.conv2.weight.data, 1.)
-        nn.init.xavier_uniform(self.bypass_conv.weight.data, np.sqrt(2))
+        nn.init.xavier_uniform_(self.conv1.weight.data, 1.)
+        nn.init.xavier_uniform_(self.conv2.weight.data, 1.)
+        nn.init.xavier_uniform_(self.bypass_conv.weight.data, np.sqrt(2))
 
         # we don't want to apply ReLU activation to raw image before convolution transformation.
         self.model = nn.Sequential(
-            spectral_norm(self.conv1),
+            spec_norm(self.conv1),
             nn.ReLU(),
-            spectral_norm(self.conv2),
+            spec_norm(self.conv2),
             nn.AvgPool2d(2)
             )
         self.bypass = nn.Sequential(
             nn.AvgPool2d(2),
-            spectral_norm(self.bypass_conv),
+            spec_norm(self.bypass_conv),
         )
 
     def forward(self, x):
         return self.model(x) + self.bypass(x)
+
+

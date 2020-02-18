@@ -1,0 +1,39 @@
+b_size: 128
+dataset: cifar10
+total_epochs: 100
+
+g_model : 'dcgan'
+d_model : 'dcgan-sn'
+
+optimizer: Adam
+
+criterion : 'kale'
+
+# load pretrained weights
+g_path : 'weights/dcgan/netG_epoch_199.pth'
+
+log_dir : 'logs'
+log_name : 'dcgan-sn_gp-10_lr-2e5'
+
+penalty_type : gradient2_l2
+penalty_lambda : 10
+
+lr : 0.00002
+
+# train
+mode : train
+train_which : 'discriminator'
+with_fid : False
+
+# sampling stuff
+Z_dim : 100
+bb_size : 1000
+lmc_sample_size : 1
+
+log_to_file : true
+
+
+
+seed : 0
+
+

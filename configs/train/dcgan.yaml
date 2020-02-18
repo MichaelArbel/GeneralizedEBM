@@ -1,0 +1,33 @@
+b_size: 128
+dataset: cifar10
+total_epochs: 100
+
+g_model : 'dcgan'
+d_model : 'dcgan'
+
+optimizer: Adam
+
+criterion : 'kale'
+
+# load pretrained weights
+g_path : 'weights/dcgan/netG_epoch_199.pth'
+
+log_dir : 'logs'
+log_name : 'dcgan'
+penalty_type : 'none'
+
+# train
+mode : train
+train_which : 'discriminator'
+with_fid : False
+
+# lmc sampling parameters
+Z_dim : 100
+bb_size : 1000
+
+log_to_file : true
+
+
+seed : 0
+
+
