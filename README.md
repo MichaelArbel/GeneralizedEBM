@@ -29,6 +29,9 @@ Eval runs should include paths to a trained discriminator model (e.g. from the t
 
 FID runs should include paths to a trained discriminator model (e.g. from the training step). Besides `log_<run_id>.txt` and `params_<run_id>.txt`, this run will produce `posterior_fids_<run_id>.json` with FID scores from over the course of LMC sampling, starting with the same prior. Sample images (and associated representations) are included in `samples/`, and GIFs can be made.
 
---
+---
 
 Any figures were created with `draw.py`, given the results of a FIDs run. The output plot shows how the FID scores of 50000 images change based on the number of LMC steps run, for the default set of LMC hyperparameters.
+
+---
+

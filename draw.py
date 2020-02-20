@@ -3,10 +3,12 @@ import numpy as np
 
 import os
 
-
+import matplotlib as mpl
 import matplotlib.pyplot as plt
 import json
 #plt.xkcd()
+
+
 plt.rc('axes', prop_cycle=(cycler(color=['r', 'g', 'purple', 'orchid', 'lightblue'])))
 
 on_sshfs = True
@@ -20,17 +22,17 @@ model_map = {
 }
 
 
+def sshfs_fp(path):
+    if on_sshfs:
+        return os.path.join('swc_sshfs', path)
+    return path
 
-import matplotlib as mpl
 mpl.rc('font', family='Helvetica Neue')
 #mpl.rc('font', family='Humor Sans')
-def main(d_types):
+def fid_plot(d_types):
     plt.figure(figsize=(8,7))
     for d in d_types:
-        if on_sshfs:
-            fname = os.path.join('logs', d, 'fids', 'posterior_fids.json')
-        else:
-            fname = os.path.join('swc_sshfs', 'logs', d, 'fids', 'poterior_fids.json')
+        fname = sshfs_fp('logs', d, 'fids', 'posterior_fids.json')
         print(fname)
 
         with open(fname, 'r') as f:
@@ -39,12 +41,8 @@ def main(d_types):
         ts, fid_train, fid_test = fid_data
         ts = ts[:len(fid_test)]
 
-
-        # plt.plot(x_range, fid_train, '.', linestyle='-', label=model_map[d], lw=2)
-
         plt.plot(ts, fid_test, '.', linestyle='-', label=model_map[d], lw=2)
 
-    #plt.plot(x_range, np.ones_like(x_range) * fid_test[0], linestyle='dotted', c='gray', lw=1)
     
     plt.axhline(y=fid_test[0], linestyle='dotted', color='gray', linewidth=2, xmin=-100,xmax=100)
     plt.xlabel('number of LMC steps')
@@ -59,13 +57,17 @@ def main(d_types):
     plt.minorticks_on()
 
     plt.legend()
-    plt.title('FID improvement with Langevin dynamics, until it blows up')
+    plt.title('FID changes with Langevin dynamics')
 
     plt.tight_layout()
 
     plt.savefig('figures/lmc_v_fid2.png')
 
     plt.close()
+
+
+def single_image(path, seed=0):
+    print(os.listdir(path))
 
 
 
@@ -78,4 +80,14 @@ if __name__ == '__main__':
                 'resnet_gp-10',
                 'resnet-sn_gp-10'
                 ]
-    main(d_types)
+    fid_plot(d_types)
+
+    seed = 0
+    Z_path = os.path.join('logs', 'dcgan-sn', 'fids', 'samples')
+    single_image(Z_path, seed)
+
+
+
+
+
+
