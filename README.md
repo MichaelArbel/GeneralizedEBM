@@ -24,4 +24,9 @@ Eval runs should include paths to a trained discriminator model (e.g. from the t
 
 ### FIDs
 
-FID runs should include paths to a trained discriminator model (e.g. from the training step). Besides `log_<run_id>.txt` and `params_<run_id>.txt`, this run will produce `lmc_fids.json` with FID scores from over the course of LMC sampling, starting with the same prior. Sample images are included in `samples/`, and GIFs can be made.
+FID runs should include paths to a trained discriminator model (e.g. from the training step). Besides `log_<run_id>.txt` and `params_<run_id>.txt`, this run will produce `posterior_fids.json` with FID scores from over the course of LMC sampling, starting with the same prior. Sample images are included in `samples/`, and GIFs can be made.
+
+
+
+--
+

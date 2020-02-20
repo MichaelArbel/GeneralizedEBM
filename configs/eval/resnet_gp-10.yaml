@@ -12,7 +12,7 @@ criterion : 'kale'
 
 # load pretrained weights
 # use a single generator for all tests
-d_path : 'logs/resnet_gp-10/train/checkpoints/d_98.pth'
+d_path : 'logs/resnet_gp-10/train/checkpoints/d_100.pth'
 g_path : 'weights/dcgan/netG_epoch_199.pth'
 
 log_dir : 'logs'
@@ -23,6 +23,7 @@ penalty_lambda : 10
 
 # train
 mode : eval
+num_lmc_steps : 80
 with_fid : True
 
 # sampling stuff

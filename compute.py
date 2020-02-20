@@ -97,11 +97,10 @@ def _gradient_penalty(d, true_data, fake_data, device):
 
 
 # get posterior samples using MLE information learned by the GAN
-def sample_posterior(prior_z, g=None, h=None, device=None, T=80, extract_every=0, gamma=1e-2, kappa=4e-2):
+def sample_posterior(prior_z, g=None, h=None, device=None, T=100, extract_every=0, gamma=1e-2, kappa=4e-2):
     # total number of steps necessary to get that many samples
     sampler = torch.distributions.Normal(torch.zeros_like(prior_z).to(device), 1)
-    if extract_every != 0:
-        T += 1
+    t_extract_list = []
     Z_extract_list = []
     
     # don't use batchnorm
@@ -112,12 +111,14 @@ def sample_posterior(prior_z, g=None, h=None, device=None, T=80, extract_every=0
         return 1/2 * torch.norm(z, dim=1) ** 2 + h(g(z))
 
     Z_t = prior_z.clone().detach()
+    t_extract_list.append(0)
+    Z_extract_list.append(Z_t)
 
     # langevin monte carlo
     V_t = torch.zeros_like(Z_t)
     C = np.exp(-kappa * gamma)
     D = np.sqrt(1 - np.exp(-2 * kappa * gamma))
-    for t in range(T):
+    for t in range(1, T+1):
         # reset computation graph
         Z_t.detach_()
         V_t.detach_()
@@ -135,15 +136,16 @@ def sample_posterior(prior_z, g=None, h=None, device=None, T=80, extract_every=0
 
         # only if extracting the samples so we have a sequence of samples
         if extract_every != 0 and t % extract_every == 0:
+            t_extract_list.append(t)
             Z_extract_list.append(Z_t.clone().detach().cpu())
 
             
     h.train()
     g.train()
 
-    if extract_every != 0:
-        return Z_extract_list
-    return Z_t.clone().detach()
+    if extract_every == 0:
+        return Z_t.clone().detach()
+    return t_extract_list, Z_extract_list
 
 
 

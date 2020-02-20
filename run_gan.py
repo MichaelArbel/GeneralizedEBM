@@ -49,7 +49,6 @@ parser.add_argument('--Z_folder', default='', type=str, help='stored Zs')
 parser.add_argument('--bb_size', type=int, default=1000, help='# Zs per batch, running out of memory is bad')
 
 # sampling noise parameters
-parser.add_argument('--sample_types', type= str, default='none,lmc', help='none and/or LMC samples')
 parser.add_argument('--lmc_gamma', default=1e-2, type=float, help='LMC parameter: gamma')
 parser.add_argument('--lmc_kappa', default=4e-2, type=float, help='LMC parameter: kappa')
 parser.add_argument('--num_lmc_steps', default=100, type=int, help='how many steps of LMC to run')

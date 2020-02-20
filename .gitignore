@@ -3,11 +3,10 @@ data/
 scripts/
 
 *internal
+*slurm*
 
 
 swc_sshfs/
-
 __pycache__/
 
 playground/
-playground.py

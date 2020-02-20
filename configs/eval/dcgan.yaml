@@ -11,7 +11,7 @@ optimizer: Adam
 criterion : 'kale'
 
 # load pretrained weights
-d_path : 'logs/dcgan/train/checkpoints/d_98.pth'
+d_path : 'logs/dcgan/train/checkpoints/d_100.pth'
 g_path : 'weights/dcgan/netG_epoch_199.pth'
 
 log_dir : 'logs'
@@ -21,6 +21,7 @@ penalty_type : 'none'
 with_fid : True
 
 mode : eval
+num_lmc_steps : 80
 
 # sampling stuff
 Z_dim : 100
