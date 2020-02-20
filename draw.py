@@ -9,13 +9,14 @@ import json
 plt.xkcd()
 plt.rc('axes', prop_cycle=(cycler(color=['r', 'g', 'purple', 'orchid'])))
 
-on_sshfs = False
+on_sshfs = True
 
 model_map = {
     'dcgan': 'DCGAN',
-    'dcgan-sn_gp2-10_lr-2e5': 'DCGAN-SN-GP',
+    'dcgan-sn_gp-10_lr-2e5': 'DCGAN-SN-GP',
     'dcgan-sn': 'DCGAN-SN',
-    'resnet-sn_gp2-10': 'ResNet-SN-GP'
+    'resnet_gp-10': 'ResNet-GP',
+    'resnet-sn_gp-10': 'ResNet-SN-GP'
 }
 
 
@@ -27,21 +28,21 @@ def main(d_types):
     plt.figure(figsize=(8,7))
     for d in d_types:
         if on_sshfs:
-            fname = os.path.join('logs', d, 'fids', 'lmc_fids2.json')
+            fname = os.path.join('logs', d, 'fids', 'posterior_fids.json')
         else:
-            fname = os.path.join('swc_sshfs', 'logs', d, 'fids', 'lmc_fids2.json')
+            fname = os.path.join('swc_sshfs', 'logs', d, 'fids', 'poterior_fids.json')
         print(fname)
 
         with open(fname, 'r') as f:
             fid_data = json.load(f)
 
-        fid_train, fid_test = list(zip(*fid_data))
+        ts, fid_train, fid_test = fid_data
+        ts = ts[:-1]
 
-        x_range = np.arange(0, 10 * len(fid_train), step=10)
 
         # plt.plot(x_range, fid_train, '.', linestyle='-', label=model_map[d], lw=2)
 
-        plt.plot(x_range, fid_test, 'o', linestyle='-.', label=model_map[d], lw=3)
+        plt.plot(ts, fid_test, 'o', linestyle='-.', label=model_map[d], lw=3)
 
     #plt.plot(x_range, np.ones_like(x_range) * fid_test[0], linestyle='dotted', c='gray', lw=1)
     
@@ -60,7 +61,7 @@ def main(d_types):
 
     plt.tight_layout()
 
-    plt.savefig('figures/lmc_v_fid.png')
+    plt.savefig('figures/lmc_v_fid2.png')
 
     plt.close()
 
@@ -70,8 +71,9 @@ if __name__ == '__main__':
 
 
     d_types = ['dcgan',
-                'dcgan-sn',
-                'dcgan-sn_gp2-10_lr-2e5',
-                'resnet-sn_gp2-10'
+                #'dcgan-sn',
+                #'dcgan-sn_gp-10_lr-2e5',
+                'resnet_gp-10',
+                #'resnet-sn_gp-10'
                 ]
     main(d_types)

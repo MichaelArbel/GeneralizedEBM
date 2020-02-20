@@ -442,11 +442,6 @@ class Trainer(object):
 
         avg_time = 0
 
-        # if os.path.isfile(fname):
-        #     with open(fname, 'rb') as f:
-        #         images = pkl.load(f)
-        #     print(f'Loaded existing images from {fname}')
-        # else:
         bb_size = self.args.bb_size
         n_batches = int(self.args.fid_samples / bb_size) + 1
 
@@ -485,10 +480,6 @@ class Trainer(object):
                             images.append(torch.zeros([self.args.fid_samples]+list(fake_data.shape[1:])))
                         images[i][m:m+bl] = fake_data.cpu()
                     m += fake_data.size(0)
-
-            # with open(fname, 'wb') as f:
-            #     pkl.dump(images, f)
-            #     print(f'Saved images into {fname}')
 
         fids = []
         for i, dp in enumerate(images):
