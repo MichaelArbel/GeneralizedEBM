@@ -6,12 +6,17 @@ import os
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import json
+import pickle as pkl
+
+import torch
+import matplotlib.gridspec as gridspec
+
 #plt.xkcd()
 
 
 plt.rc('axes', prop_cycle=(cycler(color=['r', 'g', 'purple', 'orchid', 'lightblue'])))
 
-on_sshfs = True
+on_sshfs = False
 
 model_map = {
     'dcgan': 'DCGAN',
@@ -67,7 +72,33 @@ def fid_plot(d_types):
 
 
 def single_image(path, seed=0):
-    print(os.listdir(path))
+    files = os.listdir(sshfs_fp(path))
+    files.sort()
+    samples = []
+    fig = plt.figure(figsize=(10, 3))
+    gs = gridspec.GridSpec(3, 10)
+    gs.update(wspace=0.05, hspace=0.05)
+    i = 0
+    for f in files:
+        if f.endswith('.pkl'):
+            with open(os.path.join(sshfs_fp(path), f), 'rb') as ff:
+                imgs = pkl.load(ff)
+            ax = plt.subplot(gs[i])
+            plt.axis('off')
+            ax.set_xticklabels([])
+            ax.set_yticklabels([])
+            ax.set_aspect('equal')
+            sample = imgs[seed].detach().numpy()
+            sample_t = sample.transpose((1,2,0)) * 0.5 + 0.5
+            samples.append(sample_t)
+            plt.imshow(sample_t)
+            i += 1
+            if i >= 30:
+                break
+    plt.savefig(f'figures/single_image_{seed}.png', bbox_inches='tight')
+            
+             
+
 
 
 
@@ -80,7 +111,7 @@ if __name__ == '__main__':
                 'resnet_gp-10',
                 'resnet-sn_gp-10'
                 ]
-    fid_plot(d_types)
+    #fid_plot(d_types)
 
     seed = 0
     Z_path = os.path.join('logs', 'dcgan-sn', 'fids', 'samples')

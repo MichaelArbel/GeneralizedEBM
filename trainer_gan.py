@@ -486,7 +486,7 @@ class Trainer(object):
             # save the posteriors
             fname = os.path.join(self.samples_dir, f'{self.run_id}_{str(i*extract_every).zfill(3)}_Z.pkl')
             with open(fname, 'wb') as f:
-                pkl.dump(dp, f)
+                pkl.dump(dp.detach().numpy(), f)
             # save the images themselves
             self.save_images(dp, name=f'{self.run_id}_{str(i*extract_every).zfill(3)}')
             fid = cp.compute_fid(self.args, self.device, dp, self.fid_model, self.train_loader, self.test_loader)
