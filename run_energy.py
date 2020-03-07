@@ -30,8 +30,8 @@ parser.add_argument('--load_pre_trained', action = 'store_true', help='log direc
 parser.add_argument('--generator', default = 'made',type= str,  help='log directory for summaries and checkpoints')
 
 parser.add_argument('--problem', default = 'conditional',type= str,  help='log directory for summaries and checkpoints')
-parser.add_argument('--data_root', default = '/nfs/ghome/live/michaela/Documents/projects/dde/data/r_benchmark',type= str,  help='log directory for summaries and checkpoints')
-parser.add_argument('--data_name', default = 'BigMac2003',type= str,  help='log directory for summaries and checkpoints')
+parser.add_argument('--data_root', default = '',type= str,  help='log directory for summaries and checkpoints')
+parser.add_argument('--data_name', default = 'redwine',type= str,  help='log directory for summaries and checkpoints')
 parser.add_argument('--penalty_lambda', default=0.001, type=float, help='learning rate')
 parser.add_argument('--Z_factor', default=500, type=int, help='learning rate')
 parser.add_argument('--penalty_type', default = 'gradient',type= str,  help='log directory for summaries and checkpoints')
@@ -86,7 +86,7 @@ args = make_flags(args,args.config)
 exp = Trainer(args)
 
 if args.load_pre_trained:
-	exp.eval_pre_trained()
+	exp.cross_train_load()
 else:
 	exp.cross_train()
 print('Training completed!')

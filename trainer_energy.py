@@ -25,7 +25,7 @@ import sys
 #import tensorflow as tf
 #from keras.applications.inception_v3 import InceptionV3
 import torch
-
+import pickle
 
 
 from helpers import *
@@ -35,6 +35,8 @@ from torch.autograd import grad as torch_grad
 import dataloader
 
 from copy import deepcopy
+
+import math
 
 class Trainer(object):
 	def __init__(self,args):
@@ -90,6 +92,7 @@ class Trainer(object):
 		self.best_out = None
 		self.counter_g = 0
 		self.counter_d = 0
+		self.best_generator = None
 
 	def _gradient_penalty(self, real_data, generated_data):
 		batch_size = real_data.size()[0]
@@ -137,6 +140,8 @@ class Trainer(object):
 			penalty = penalty/len_params
 			g_penalty = self._gradient_penalty(true_data,fake_data)
 			penalty = penalty+ g_penalty
+		else:
+			raise NotImplementedError
 		return penalty
 
 	def penalty_g(self,true_data):
@@ -245,11 +250,14 @@ class Trainer(object):
 		print(' Neg likelihoood:  ' +  str(val_g_loss.item()))
 		if self.best_out is None:
 			self.best_out = val_g_loss
+			self.best_generator = deepcopy(self.generator)
 		if val_g_loss < self.best_out:
 			self.best_out = val_g_loss
 			self.counter_g = 0
+			self.best_generator= deepcopy(self.generator)
 		else:
 			self.counter_g = self.counter_g+1
+		return self.g_loss.item()
 
 	def get_best_dic(self,epoch,best_out):
 		out = self.evaluate(epoch,1)
@@ -260,35 +268,59 @@ class Trainer(object):
 			best_out = deepcopy(out)
 		print('best up to now: ')
 		print(best_out)
-		return best_out
+		return best_out, out
 
 
-	def train(self):
+	def train(self,run):
 		self.counter_g = 0
+		all_out = []
 		best_out = None
 		for epoch in range(self.args.total_epochs):
-			
 			print('Training the base...')
 			print('Epoch: ' + str(epoch))
-			self.train_generator(epoch)
+			loss= self.train_generator(epoch)
 			if np.mod(epoch,10)==0:
-				best_out = self.get_best_dic(epoch,best_out)
+				best_out,out = self.get_best_dic(epoch,best_out)
+				all_out.append(out)
+				#save_pickle(best_out, os.path.join(self.log_dir, 'data'), name =  'gen_run_'+ str(run)+ '_iter_'+ str(iteration).zfill(8))
 			#self.sample_images(epoch)
 			print(best_out)
-			if self.counter_g >30:
+			if  not math.isfinite(loss):
 				break
+		save_pickle(all_out, os.path.join(self.log_dir, 'data'), name =  'gen_run_'+ str(run))
 		self.save_checkpoint(epoch)
+		self.generator = self.best_generator
 		print('Done training the base, learning MLE')
+		all_out = []
 		for epoch in range(self.args.total_epochs):
 			print('Epoch: ' + str(epoch))
 			self.train_discriminator(epoch)
 			if np.mod(epoch,10)==0:
-				best_out = self.get_best_dic(epoch,best_out)
+				best_out,out = self.get_best_dic(epoch,best_out)
+				all_out.append(out)
+				#save_pickle(best_out, os.path.join(self.log_dir, 'data'), name =  'dis_run_'+ str(run)+ '_iter_'+ str(iteration).zfill(8))
 			print(best_out)
+		save_pickle(all_out, os.path.join(self.log_dir, 'data'), name =  'gen_run_'+ str(run))
 		self.save_checkpoint(epoch)
 		return best_out
 
-
+	def train_dis(self,run):
+		self.counter_g = 0
+		best_out = None
+		self.load_generator()
+		print('Done training the base, learning MLE')
+		all_out = []
+		for epoch in range(self.args.total_epochs):
+			print('Epoch: ' + str(epoch))
+			self.train_discriminator(epoch)
+			if np.mod(epoch,10)==0:
+				best_out,out = self.get_best_dic(epoch,best_out)
+				all_out.append(out)
+				#save_pickle(best_out, os.path.join(self.log_dir, 'data'), name =  'dis_run_'+ str(run)+ '_iter_'+ str(iteration).zfill(8))
+			print(best_out)
+		save_pickle(all_out, os.path.join(self.log_dir, 'data'), name =  'gen_run_'+ str(run))
+		self.save_checkpoint(epoch)
+		return best_out
 
 	def cross_train(self):
 		out = []
@@ -296,7 +328,17 @@ class Trainer(object):
 			print( ' iteration : '+str(i) )
 			self.args.seed = seed
 			self.build_model()
-			out.append(self.train())
+			out.append(self.train(i))
+		average_out = self.process_out(out)
+		print(average_out)
+
+	def cross_train_load(self):
+		out = []
+		for i, seed in enumerate(range(1)):
+			print( ' iteration : '+str(i) )
+			self.args.seed = seed
+			self.build_model()
+			out.append(self.train_dis(i))
 		average_out = self.process_out(out)
 		print(average_out)
 
@@ -397,6 +439,10 @@ class Trainer(object):
 			torch.save(self.generator.state_dict(), os.path.join(self.checkpoint_dir, 'gen_{}'.format(epoch)+'.pth' ))
 			if self.args.criterion=='kale':
 				torch.save({'log_partition':self.log_partition}, os.path.join(self.checkpoint_dir, 'log_partition_{}'.format(epoch)+'.pth' ))
+def save_pickle(out,exp_dir,name):
+	os.makedirs(exp_dir, exist_ok=True)
+	with  open(os.path.join(exp_dir,name+".pickle"),"wb") as pickle_out:
+		pickle.dump(out, pickle_out)
 
 def make_log_dir(args):
 	if args.with_sacred:
@@ -407,10 +453,14 @@ def make_log_dir(args):
 		os.mkdir(log_dir)
 	checkpoint_dir = os.path.join(log_dir,'checkpoints')
 	samples_dir = os.path.join(log_dir,'samples')
+	data_dir = os.path.join(log_dir,'data')
 	if not os.path.isdir(checkpoint_dir):
 		os.mkdir(checkpoint_dir)
 	if not os.path.isdir(samples_dir):
 		os.mkdir(samples_dir)
+	if not os.path.isdir(data_dir):
+		os.mkdir(data_dir)
+
 	return log_dir,checkpoint_dir,samples_dir
 
 def assign_device(device):

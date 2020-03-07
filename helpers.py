@@ -136,7 +136,7 @@ def get_net(args, net_type, device):
 
 # return a discriminator for the energy model
 def get_discriminator(args,input_dims,device):
-    return energy_model.Discriminator(input_dims).to(device)
+    return energy_model.Discriminator(input_dims,device).to(device)
 
 # return the base for the energy model
 def get_base_energy(args,input_dims,device):

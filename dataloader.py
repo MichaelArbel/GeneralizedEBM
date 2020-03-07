@@ -543,5 +543,3 @@ def load_data(dname, noise_std=0.0, seed=1, D=None, data_args={}, **kwargs):
         assert D is not None
         p = RealToy(dname.title(), D=D, noise_std=0.0, ntest=1000, seed=seed, data_args=data_args, **kwargs)
     return p
-
-

@@ -8,7 +8,8 @@ leak = 0.1
 w_g = 4
 
 import models.made_model as made
-
+from torch.nn.utils import spectral_norm as sn_official
+spectral_norm = sn_official
 class MADEGenerator(nn.Module):
     def __init__(self, dims):
         super(MADEGenerator, self).__init__()
@@ -67,7 +68,7 @@ class GaussianGenerator(nn.Module):
 
 
 class Discriminator(nn.Module):
-    def __init__(self,dim):
+    def __init__(self,dim,device):
         super(Discriminator, self).__init__()
         kernel_size = 3
         d_1,d_2,d_3, d_4, d_5,d_6 = 1000,2000,1000,300,200,100
@@ -77,10 +78,11 @@ class Discriminator(nn.Module):
         mask_2 = made.get_mask(d_1, d_2, d_0)
         mask_3 = made.get_mask(d_2, d_3, d_0, mask_type='output')
 
-        self.linear1 = made.MaskedLinear(d_0, d_1, mask_1)
-        self.linear2 = made.MaskedLinear(d_1, d_2, mask_2)
-        self.linear3 = made.MaskedLinear(d_2, d_3, mask_3)
-        self.linear4 = nn.Linear(d_3, 1)
+
+        self.linear1 = MaskedLinear(d_0, d_1, mask_1,device)
+        self.linear2 = MaskedLinear(d_1, d_2, mask_2,device)
+        self.linear3 = MaskedLinear(d_2, d_3, mask_3,device)
+        self.linear4 = spectral_norm(nn.Linear(d_3, 1))
 
 
 
@@ -95,23 +97,17 @@ class Discriminator(nn.Module):
 
         return m
 
-    def make_masks(self,x,w):
-        torch.zeros()
-
 
 
 class MaskedLinear(nn.Module):
-    def __init__(self, in_features, out_features, kernel_size):
+    def __init__(self, in_features, out_features, mask,device):
         super(MaskedLinear, self).__init__()
-        # sample random masks
-        mask_int = torch.multinomial(torch.ones([out_features,in_features]),kernel_size, replacement=False)
-        mask = torch.nn.functional.one_hot(mask_int,in_features)
-        mask = mask.sum([1]).type(torch.float32)
 
-        self.linear = nn.Linear(in_features, out_features)
-        self.mask = nn.Parameter(mask, requires_grad=False)
+        #self.linear = spectral_norm(nn.Linear(in_features, out_features))
+        self.linear = spectral_norm( nn.Linear(in_features, out_features).to(device))
+        self.register_buffer('mask', mask)
     def forward(self,x):
-        masked_weight = self.linear.weight*self.mask
-        out = x@masked_weight.T + self.linear.bias
+        out = F.linear(x, self.linear.weight * self.mask,
+                          self.linear.bias)
         return out
 
