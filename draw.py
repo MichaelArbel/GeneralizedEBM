@@ -3,66 +3,102 @@ import numpy as np
 
 import os
 
-
+import matplotlib as mpl
 import matplotlib.pyplot as plt
 import json
-plt.xkcd()
-plt.rc('axes', prop_cycle=(cycler(color=['r', 'g', 'purple', 'orchid'])))
+import pickle as pkl
+
+import torch
+import matplotlib.gridspec as gridspec
+
+#plt.xkcd()
+
+
+plt.rc('axes', prop_cycle=(cycler(color=['r', 'g', 'purple', 'orchid', 'lightblue'])))
 
 on_sshfs = False
 
 model_map = {
     'dcgan': 'DCGAN',
-    'dcgan-sn_gp2-10_lr-2e5': 'DCGAN-SN-GP',
+    'dcgan-sn_gp-10_lr-2e5': 'DCGAN-SN-GP',
     'dcgan-sn': 'DCGAN-SN',
-    'resnet-sn_gp2-10': 'ResNet-SN-GP'
+    'resnet_gp-10': 'ResNet-GP',
+    'resnet-sn_gp-10': 'ResNet-SN-GP'
 }
 
 
+def sshfs_fp(path):
+    if on_sshfs:
+        return os.path.join('swc_sshfs', path)
+    return path
 
-import matplotlib as mpl
 mpl.rc('font', family='Helvetica Neue')
-mpl.rc('font', family='Humor Sans')
-def main(d_types):
+#mpl.rc('font', family='Humor Sans')
+def fid_plot(d_types):
     plt.figure(figsize=(8,7))
     for d in d_types:
-        if on_sshfs:
-            fname = os.path.join('logs', d, 'fids', 'lmc_fids2.json')
-        else:
-            fname = os.path.join('swc_sshfs', 'logs', d, 'fids', 'lmc_fids2.json')
+        fname = sshfs_fp('logs', d, 'fids', 'posterior_fids.json')
         print(fname)
 
         with open(fname, 'r') as f:
             fid_data = json.load(f)
 
-        fid_train, fid_test = list(zip(*fid_data))
+        ts, fid_train, fid_test = fid_data
+        ts = ts[:len(fid_test)]
 
-        x_range = np.arange(0, 10 * len(fid_train), step=10)
+        plt.plot(ts, fid_test, '.', linestyle='-', label=model_map[d], lw=2)
 
-        # plt.plot(x_range, fid_train, '.', linestyle='-', label=model_map[d], lw=2)
-
-        plt.plot(x_range, fid_test, 'o', linestyle='-.', label=model_map[d], lw=3)
-
-    #plt.plot(x_range, np.ones_like(x_range) * fid_test[0], linestyle='dotted', c='gray', lw=1)
     
     plt.axhline(y=fid_test[0], linestyle='dotted', color='gray', linewidth=2, xmin=-100,xmax=100)
     plt.xlabel('number of LMC steps')
     plt.ylabel('FID score')
-    plt.ylim([30,37])
+    pmin = 30
+    pmax = 70
+    plt.ylim([pmin, pmax])
 
-    plt.yticks(np.arange(30, 37, 1))
+    plt.yticks(np.arange(pmin, pmax, 1))
 
-    plt.grid(which='major', axis='y', linewidth=0.2)
+    plt.grid(which='major', axis='both', linewidth=0.2)
     plt.minorticks_on()
 
     plt.legend()
-    plt.title('FID improvement with Langevin dynamics, until it blows up')
+    plt.title('FID changes with Langevin dynamics')
 
     plt.tight_layout()
 
-    plt.savefig('figures/lmc_v_fid.png')
+    plt.savefig('figures/lmc_v_fid2.png')
 
     plt.close()
+
+
+def single_image(path, seed=0):
+    files = os.listdir(sshfs_fp(path))
+    files.sort()
+    samples = []
+    fig = plt.figure(figsize=(10, 3))
+    gs = gridspec.GridSpec(3, 10)
+    gs.update(wspace=0.05, hspace=0.05)
+    i = 0
+    for f in files:
+        if f.endswith('.pkl'):
+            with open(os.path.join(sshfs_fp(path), f), 'rb') as ff:
+                imgs = pkl.load(ff)
+            ax = plt.subplot(gs[i])
+            plt.axis('off')
+            ax.set_xticklabels([])
+            ax.set_yticklabels([])
+            ax.set_aspect('equal')
+            sample = imgs[seed].detach().numpy()
+            sample_t = sample.transpose((1,2,0)) * 0.5 + 0.5
+            samples.append(sample_t)
+            plt.imshow(sample_t)
+            i += 1
+            if i >= 30:
+                break
+    plt.savefig(f'figures/single_image_{seed}.png', bbox_inches='tight')
+            
+             
+
 
 
 
@@ -71,7 +107,18 @@ if __name__ == '__main__':
 
     d_types = ['dcgan',
                 'dcgan-sn',
-                'dcgan-sn_gp2-10_lr-2e5',
-                'resnet-sn_gp2-10'
+                'dcgan-sn_gp-10_lr-2e5',
+                'resnet_gp-10',
+                'resnet-sn_gp-10'
                 ]
-    main(d_types)
+    #fid_plot(d_types)
+
+    seed = 0
+    Z_path = os.path.join('logs', 'dcgan-sn', 'fids', 'samples')
+    single_image(Z_path, seed)
+
+
+
+
+
+

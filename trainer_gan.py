@@ -451,11 +451,6 @@ class Trainer(object):
 
         avg_time = 0
 
-        # if os.path.isfile(fname):
-        #     with open(fname, 'rb') as f:
-        #         images = pkl.load(f)
-        #     print(f'Loaded existing images from {fname}')
-        # else:
         bb_size = self.args.bb_size
         n_batches = int(self.args.fid_samples / bb_size) + 1
 
@@ -495,16 +490,12 @@ class Trainer(object):
                         images[i][m:m+bl] = fake_data.cpu()
                     m += fake_data.size(0)
 
-            # with open(fname, 'wb') as f:
-            #     pkl.dump(images, f)
-            #     print(f'Saved images into {fname}')
-
         fids = []
         for i, dp in enumerate(images):
             # save the posteriors
             fname = os.path.join(self.samples_dir, f'{self.run_id}_{str(i*extract_every).zfill(3)}_Z.pkl')
             with open(fname, 'wb') as f:
-                pkl.dump(dp, f)
+                pkl.dump(dp.detach().numpy(), f)
             # save the images themselves
             self.save_images(dp, name=f'{self.run_id}_{str(i*extract_every).zfill(3)}')
             fid = cp.compute_fid(self.args, self.device, dp, self.fid_model, self.train_loader, self.test_loader)
