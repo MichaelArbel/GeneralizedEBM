@@ -82,8 +82,9 @@ class Discriminator(nn.Module):
         self.linear1 = MaskedLinear(d_0, d_1, mask_1,device)
         self.linear2 = MaskedLinear(d_1, d_2, mask_2,device)
         self.linear3 = MaskedLinear(d_2, d_3, mask_3,device)
-        self.linear4 = spectral_norm(nn.Linear(d_3, 1))
-
+        #self.linear4 = spectral_norm(nn.Linear(d_3, 1))
+        self.linear4 = nn.Linear(d_3, 1)
+        self.max = 10
 
 
     def forward(self, x):
@@ -94,7 +95,7 @@ class Discriminator(nn.Module):
         m = nn.LeakyReLU(leak)(self.linear3(m))
 
         m = self.linear4(m)
-
+        m = nn.ReLU()(m+self.max)-self.max
         return m
 
 
@@ -104,7 +105,7 @@ class MaskedLinear(nn.Module):
         super(MaskedLinear, self).__init__()
 
         #self.linear = spectral_norm(nn.Linear(in_features, out_features))
-        self.linear = spectral_norm( nn.Linear(in_features, out_features).to(device))
+        self.linear = nn.Linear(in_features, out_features).to(device)
         self.register_buffer('mask', mask)
     def forward(self,x):
         out = F.linear(x, self.linear.weight * self.mask,

@@ -208,9 +208,18 @@ class Trainer(object):
         total_loss = loss + penalty
         
         total_loss.backward()
+        self.grad_clip(optimizer)
         optimizer.step()
         return total_loss
-
+    def grad_clip(self,optimizer):
+        params = optimizer.param_groups[0]['params']
+        for i, param in enumerate(params):
+            new_grad = 2.*(param.grad.data)/(1+ (param.grad.data)**2)
+            if math.isfinite(torch.norm(new_grad).item()):
+                param.grad.data = 1.*new_grad
+            else:
+                print('nan grad')
+                param.grad.data = torch.zeros_like(new_grad)
     # save model parameters from a checkpoint, only used when training
     def save_checkpoint(self, epoch):
         if self.args.save_nothing:

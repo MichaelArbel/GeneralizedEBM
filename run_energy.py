@@ -58,12 +58,14 @@ parser.add_argument('--latent_noise',  default ='gaussian' ,type= str ,  help='l
 parser.add_argument('--optimizer', default = 'adam', type= str,  help='log directory for summaries and checkpoints')
 parser.add_argument('--b_size', default = 256, type= int,  help='gpu device')
 parser.add_argument('--lr', default=0.0002, type=float, help='learning rate')
+parser.add_argument('--lr_generator', default=0.00001, type=float, help='learning rate')
+
 parser.add_argument('--sgd_momentum', default=0., type=float, help='learning rate')
 parser.add_argument('--beta_1', default=0.9, type=float, help='learning rate')
 parser.add_argument('--beta_2', default=0.999, type=float, help='learning rate')
 parser.add_argument('--weight_decay', default=0.0, type=float, help='learning rate')
 
-parser.add_argument('--lr_decay',  default = 0.9 ,type= float ,  help='gpu device')
+parser.add_argument('--lr_decay',  default = 0.1 ,type= float ,  help='gpu device')
 
 parser.add_argument('--n_iter_d_init', default = 100, type= int,  help='gpu device')
 parser.add_argument('--n_iter_d', default = 10, type= int,  help='gpu device')
@@ -72,7 +74,7 @@ parser.add_argument('--Z_dim', default = 128, type= int,  help='gpu device')
 # Scheduler parameters 
 parser.add_argument('--use_scheduler', default = 'store_true' ,  help='gpu device')
 parser.add_argument('--scheduler',  default ='ExponentialLR' ,type= str ,  help='gpu device')
-parser.add_argument('--milestone',  default = '100,200,300' ,type= str ,  help='gpu device')
+parser.add_argument('--milestone',  default = '50,500,750' ,type= str ,  help='gpu device')
 
 parser.add_argument('--scheduler_gamma',  default =0.99 ,type= float ,  help='gpu device')
 

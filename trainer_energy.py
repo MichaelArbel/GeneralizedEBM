@@ -76,9 +76,8 @@ class Trainer(object):
 			self.log_partition = 0.
 		self.dim_latent = dims[0]
 		self.noise_gen = get_latent(self.args,dims[0], self.device)
-		net_type = 'discriminator'
-		self.optim_d = get_optimizer(self.args,net_type,trainable_params)
-		self.optim_g = get_optimizer(self.args,net_type,self.generator.parameters())
+		self.optim_d = get_optimizer(self.args,'discriminator',trainable_params)
+		self.optim_g = get_optimizer(self.args,'generator',self.generator.parameters())
 		self.scheduler_d = get_scheduler(self.args, self.optim_d)
 		self.scheduler_g = get_scheduler(self.args, self.optim_g)
 		self.loss = get_loss(self.args)
@@ -152,7 +151,7 @@ class Trainer(object):
 		return penalty
 
 
-	def iteration(self,data,y=None,loss_type='discriminator',train_mode='train',with_reg=True):
+	def iteration(self,data,y=None,loss_type='discriminator',train_mode='train', with_reg=True):
 		Z_factor = self.args.Z_factor
 		if train_mode=='train':
 			self.optim_d.zero_grad()
@@ -182,10 +181,24 @@ class Trainer(object):
 			optimizer = self.optim_g
 		if train_mode=='train':
 			loss.backward()
+			self.grad_clip(optimizer)
 			optimizer.step()
 		return loss
 
+	def grad_clip(self,optimizer):
+		params = optimizer.param_groups[0]['params']
+		for i, param in enumerate(params):
+			new_grad = 2.*(param.grad.data)/(1+ (param.grad.data)**2)
+			if math.isfinite(torch.norm(new_grad).item()):
+				param.grad.data = 1.*new_grad
+			else:
+				print('nan grad')
+				param.grad.data = torch.zeros_like(new_grad)
+
 	def train_discriminator(self,epoch):
+		if  epoch==6 :
+			print(' error nan !!')
+
 		for batch_idx, (X,y) in enumerate(self.train_loader):
 			
 			X,y = X.to(self.device), y.to(self.device)
@@ -199,7 +212,7 @@ class Trainer(object):
 				else:
 					neg_log_density = - self.generator.log_density(y,X).mean()
 				neg_log_likelihood = neg_log_density.mean() + self.d_loss + self.log_volume
-				print(' Neg likelihoood: d_loss: ' +  str(neg_log_likelihood.item()))
+		print(' Neg likelihoood: d_loss: ' +  str(neg_log_likelihood.item()))
 		val_d_loss = 0.
 		num_el = 0
 
@@ -218,6 +231,7 @@ class Trainer(object):
 			num_el += X.shape[0]
 		val_d_loss = val_d_loss/num_el
 		print(' Neg likelihoood: d_loss: ' +  str(val_d_loss.item()))
+
 		if self.best_out is None:
 			self.best_out = val_d_loss
 		if val_d_loss < self.best_out:
@@ -288,8 +302,8 @@ class Trainer(object):
 			if  not math.isfinite(loss):
 				break
 		save_pickle(all_out, os.path.join(self.log_dir, 'data'), name =  'gen_run_'+ str(run))
-		self.save_checkpoint(epoch)
 		self.generator = self.best_generator
+		self.save_checkpoint(epoch)
 		print('Done training the base, learning MLE')
 		all_out = []
 		for epoch in range(self.args.total_epochs):
@@ -318,6 +332,7 @@ class Trainer(object):
 				all_out.append(out)
 				#save_pickle(best_out, os.path.join(self.log_dir, 'data'), name =  'dis_run_'+ str(run)+ '_iter_'+ str(iteration).zfill(8))
 			print(best_out)
+			self.scheduler_d.step()
 		save_pickle(all_out, os.path.join(self.log_dir, 'data'), name =  'gen_run_'+ str(run))
 		self.save_checkpoint(epoch)
 		return best_out
@@ -334,7 +349,7 @@ class Trainer(object):
 
 	def cross_train_load(self):
 		out = []
-		for i, seed in enumerate(range(1)):
+		for i, seed in enumerate(range(15)):
 			print( ' iteration : '+str(i) )
 			self.args.seed = seed
 			self.build_model()

@@ -16,7 +16,7 @@ from torch.autograd import grad as torch_grad
 # fid_pytorch, inception
 import metrics.fid_pytorch as fid_pytorch
 from metrics.inception import InceptionV3
-
+import hamiltorch
 
 def wasserstein(true_data,fake_data,loss_type):
     if loss_type=='discriminator':
@@ -106,6 +106,120 @@ def sample_posterior(prior_z, g=None, h=None, device=None, T=100, extract_every=
     # don't use batchnorm
     h.eval()
     g.eval()
+
+    def U_potential(z, h, g):
+        return 1/2 * torch.norm(z, dim=1) ** 2 + h(g(z))
+
+    Z_t = prior_z.clone().detach()
+    t_extract_list.append(0)
+    Z_extract_list.append(Z_t)
+
+    # langevin monte carlo
+    V_t = torch.zeros_like(Z_t)
+    C = np.exp(-kappa * gamma)
+    D = np.sqrt(1 - np.exp(-2 * kappa * gamma))
+    for t in range(1, T+1):
+        # reset computation graph
+        Z_t.detach_()
+        V_t.detach_()
+        Z_half = Z_t + gamma / 2 * V_t
+        Z_half.requires_grad_()
+        # calculate potentials and derivatives
+        U = U_potential(Z_half, h, g).sum()
+        U.backward()
+        dUdZ = Z_half.grad
+        # update values
+        V_half = V_t - gamma / 2 * dUdZ
+        V_tilde = C * V_half + D * sampler.sample()
+        V_t = V_tilde - gamma / 2 * dUdZ
+        Z_t = Z_half + gamma / 2 * V_t
+
+        # only if extracting the samples so we have a sequence of samples
+        if extract_every != 0 and t % extract_every == 0:
+            t_extract_list.append(t)
+            Z_extract_list.append(Z_t.clone().detach().cpu())
+
+            
+    h.train()
+    g.train()
+
+    if extract_every == 0:
+        return Z_t.clone().detach()
+    return t_extract_list, Z_extract_list
+
+
+# get posterior samples using MLE information learned by the GAN
+def sample_posterior(prior_z, g=None, h=None, device=None, T=100, extract_every=0, gamma=1e-2, kappa=4e-2):
+    # total number of steps necessary to get that many samples
+    sampler = torch.distributions.Normal(torch.zeros_like(prior_z).to(device), 1)
+    t_extract_list = []
+    Z_extract_list = []
+    
+    # don't use batchnorm
+    h.eval()
+    g.eval()
+
+    def U_potential(z, h, g):
+        return 1/2 * torch.norm(z, dim=1) ** 2 + h(g(z))
+
+    Z_t = prior_z.clone().detach()
+    t_extract_list.append(0)
+    Z_extract_list.append(Z_t)
+
+    # langevin monte carlo
+    V_t = torch.zeros_like(Z_t)
+    C = np.exp(-kappa * gamma)
+    D = np.sqrt(1 - np.exp(-2 * kappa * gamma))
+    for t in range(1, T+1):
+        # reset computation graph
+        Z_t.detach_()
+        V_t.detach_()
+        Z_half = Z_t + gamma / 2 * V_t
+        Z_half.requires_grad_()
+        # calculate potentials and derivatives
+        U = U_potential(Z_half, h, g).sum()
+        U.backward()
+        dUdZ = Z_half.grad
+        # update values
+        V_half = V_t - gamma / 2 * dUdZ
+        V_tilde = C * V_half + D * sampler.sample()
+        V_t = V_tilde - gamma / 2 * dUdZ
+        Z_t = Z_half + gamma / 2 * V_t
+
+        # only if extracting the samples so we have a sequence of samples
+        if extract_every != 0 and t % extract_every == 0:
+            t_extract_list.append(t)
+            Z_extract_list.append(Z_t.clone().detach().cpu())
+
+            
+    h.train()
+    g.train()
+
+    if extract_every == 0:
+        return Z_t.clone().detach()
+    return t_extract_list, Z_extract_list
+
+
+# get posterior samples using MLE information learned by the GAN
+def sample_posterior(prior_z, g=None, h=None, device=None, T=100, extract_every=0, gamma=1e-2, kappa=4e-2):
+    # total number of steps necessary to get that many samples
+    sampler = torch.distributions.Normal(torch.zeros_like(prior_z).to(device), 1)
+    t_extract_list = []
+    Z_extract_list = []
+    
+    # don't use batchnorm
+    h.eval()
+    g.eval()
+
+
+    num_samples = 400
+    step_size = .3
+    num_steps_per_sample = 5
+
+    hamiltorch.set_random_seed(123)
+    params_init = torch.zeros(3)
+    params_hmc = hamiltorch.sample(log_prob_func=log_prob, params_init=params_init,  num_samples=num_samples, step_size=step_size, num_steps_per_sample=num_steps_per_sample)
+
 
     def U_potential(z, h, g):
         return 1/2 * torch.norm(z, dim=1) ** 2 + h(g(z))
