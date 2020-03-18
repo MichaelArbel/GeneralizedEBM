@@ -16,7 +16,7 @@ from torch.autograd import grad as torch_grad
 # fid_pytorch, inception
 import metrics.fid_pytorch as fid_pytorch
 from metrics.inception import InceptionV3
-import hamiltorch
+import torch
 
 def wasserstein(true_data,fake_data,loss_type):
     if loss_type=='discriminator':
@@ -216,9 +216,9 @@ def sample_posterior(prior_z, g=None, h=None, device=None, T=100, extract_every=
     step_size = .3
     num_steps_per_sample = 5
 
-    hamiltorch.set_random_seed(123)
-    params_init = torch.zeros(3)
-    params_hmc = hamiltorch.sample(log_prob_func=log_prob, params_init=params_init,  num_samples=num_samples, step_size=step_size, num_steps_per_sample=num_steps_per_sample)
+    #torch.set_random_seed(123)
+    #params_init = torch.zeros(3)
+    #params_hmc = torch.sample(log_prob_func=log_prob, params_init=params_init,  num_samples=num_samples, step_size=step_size, num_steps_per_sample=num_steps_per_sample)
 
 
     def U_potential(z, h, g):

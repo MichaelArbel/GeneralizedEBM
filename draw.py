@@ -96,9 +96,6 @@ def single_image(path, seed=0):
             if i >= 30:
                 break
     plt.savefig(f'figures/single_image_{seed}.png', bbox_inches='tight')
-            
-             
-
 
 
 
