@@ -58,7 +58,7 @@ parser.add_argument('--num_lmc_steps', default=100, type=int, help='how many ste
 parser.add_argument('--criterion', default='kale',type= str, help='loss type')
 parser.add_argument('--optimizer', default='Adam', type= str, help='optimizer')
 parser.add_argument('--b_size', default=128, type= int,  help='default batch size')
-parser.add_argument('--lr', default=0.0002, type=float, help='learning rate')
+parser.add_argument('--lr', default=0.00001, type=float, help='learning rate')
 parser.add_argument('--sgd_momentum', default=0., type=float, help='learning rate')
 parser.add_argument('--beta_1', default=0.9, type=float, help='learning rate')
 parser.add_argument('--beta_2', default=0.999, type=float, help='learning rate')

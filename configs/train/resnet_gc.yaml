@@ -27,7 +27,7 @@ with_fid : False
 Z_dim : 100
 bb_size : 1000
 
-log_to_file : true
+#log_to_file : true
 
 
 

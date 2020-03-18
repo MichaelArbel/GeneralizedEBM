@@ -19,7 +19,7 @@ class Discriminator(nn.Module):
         super().__init__()
 
         self.nn_type = nn_type
-
+        self.max = 10
         if nn_type == 'dcgan':
             # adapted from pytorch website
             # https://pytorch.org/tutorials/beginner/dcgan_faces_tutorial.html#implementation
@@ -186,6 +186,7 @@ class Discriminator(nn.Module):
 
     def forward(self, input):
         output = self.main(input)
+        output = nn.ReLU()(output+self.max)-self.max
 
         return output.view(-1, 1).squeeze(1)
 
