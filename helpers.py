@@ -26,7 +26,7 @@ import compute as cp
 import time
 
 from dataloader import load_data, PrepareUCIData
-
+import samplers
 # choose dataloaders for pytorch
 def get_data_loader(args):
     transform_train = transforms.Compose([
@@ -113,10 +113,27 @@ def get_scheduler(args,optimizer):
 
 
 # return some sort of latent noise
-def get_normal(args, device, b_size):
-    return torch.distributions.Normal(torch.zeros([b_size, args.Z_dim]).to(device), 1)
+#def get_normal(args, device, b_size):
+#    return torch.distributions.Normal(torch.zeros([b_size, args.Z_dim]).to(device), 1)
+
+
+def get_normal(args, device):
+    loc = torch.zeros(args.Z_dim).to(device)
+    scale = torch.ones(args.Z_dim).to(device)
+    normal = torch.distributions.normal.Normal(loc, scale)
+    return torch.distributions.independent.Independent(normal,1)
+
+    #return torch.distributions.MultivariateNormal(torch.zeros(args.Z_dim).to(device),torch.eye(args.Z_dim).to(device))
 
 # return the distribution of the latent noise
+
+def get_latent_sampler(args,potential,device):
+    momentum = get_normal(args,device)
+    if args.latent_sampler=='hmc':
+        return samplers.HMCsampler(potential,momentum, sample_chain = args.lmc_sampler_chain, T=args.num_lmc_steps, num_steps_min=10, num_steps_max=20,gamma=args.lmc_gamma,  kappa = args.lmc_kappa)
+    elif args.latent_sampler=='langevin':
+        return samplers.LangevinSampler(potential,momentum, sample_chain = args.lmc_sampler_chain, T=args.num_lmc_steps, num_steps_min=10, num_steps_max=20,gamma=args.lmc_gamma,  kappa = args.lmc_kappa)
+
 def get_latent(args,dim,device):
     dim = int(dim)
     if args.latent_noise=='gaussian':
@@ -128,7 +145,7 @@ def get_latent(args,dim,device):
 # initialize neural net corresponding to type
 def get_net(args, net_type, device):
     if net_type == 'discriminator':
-        net = Discriminator(nn_type=args.d_model).to(device)
+        net = Discriminator(nn_type=args.d_model, bn=args.bn,skipinit=args.skipinit).to(device)
     elif net_type == 'generator':
         net = Generator(nz=args.Z_dim, nn_type=args.g_model).to(device)
     return net
