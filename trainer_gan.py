@@ -27,7 +27,7 @@ import timeit
 
 import helpers as hp
 import compute as cp
-    
+import samplers
 
 
 class Trainer(object):
@@ -66,17 +66,21 @@ class Trainer(object):
 
     # model building functions
 
+
     def build_model(self):
         self.train_loader, self.test_loader = hp.get_data_loader(self.args)
         self.generator = hp.get_net(self.args, 'generator', self.device)
         self.discriminator = hp.get_net(self.args, 'discriminator', self.device)
+        self.noise_gen = hp.get_normal(self.args, self.device)
 
         # load models if path exists, define log partition if using kale and add to discriminator
         self.d_params = list(filter(lambda p: p.requires_grad, self.discriminator.parameters()))
         if self.args.g_path is not None:
             self.load_generator()
+            self.generator.eval()
         if self.args.d_path is not None:
             self.load_discriminator()
+            self.discriminator.eval()
             if self.args.criterion == 'kale':
                 self.d_params.append(self.log_partition)
         else:
@@ -95,20 +99,29 @@ class Trainer(object):
             self.scheduler_g = hp.get_scheduler(self.args, self.optim_g)
 
             self.loss = hp.get_loss(self.args)
-            self.noise_gen = hp.get_normal(self.args, self.device, self.args.b_size)
+            
 
             self.counter = 0
             self.g_loss = torch.tensor(0.)
             self.d_loss = torch.tensor(0.)
 
+        self.latent_potential = samplers.Latent_potential(self.generator,self.discriminator,self.noise_gen) 
+        self.latent_sampler = hp.get_latent_sampler(self.args, self.latent_potential, self.device)
+        if self.mode == 'fids':
+            self.with_fid= True
         if self.with_fid and self.mode != 'images':
             print('==> Loading inception network...')
             block_idx = cp.InceptionV3.BLOCK_INDEX_BY_DIM[2048]
             self.fid_model = cp.InceptionV3([block_idx]).to(self.device)
+        self.best_kale=-220150.
+        self.d_loss_train = {}
+        self.d_loss_train['loss']=[]
+        self.d_loss_train['loss_std'] = []
+        self.d_loss_train['epoch'] = []
 
     def load_generator(self):
         g_model = torch.load(self.args.g_path)
-        self.noise_gen = hp.get_normal(self.args, self.device, self.args.b_size)
+        self.noise_gen = hp.get_normal(self.args, self.device)
         self.generator.load_state_dict(g_model)
         self.generator = self.generator.to(self.device)
 
@@ -117,8 +130,10 @@ class Trainer(object):
         self.discriminator.load_state_dict(d_model, strict=False)
         self.discriminator = self.discriminator.to(self.device)
         if self.args.criterion == 'kale':
-            self.log_partition = d_model['log_partition']
-
+            try: 
+                self.log_partition = d_model['log_partition'].to(self.device)
+            except:
+                self.log_partition = nn.Parameter(torch.zeros(1).to(self.device))
 
 
 
@@ -130,15 +145,22 @@ class Trainer(object):
         # want epochs to start at 1
         for epoch in range(1, self.args.total_epochs + 1):
             print(f'Epoch: {epoch}')
+            if np.mod(epoch, 1) == 0 or epoch == 1:
+                #print('no_eval_mode:')
+                #self.evaluate_training(eval_mode=False)
+                #print('eval_mode:')
+                kale = self.evaluate_training(eval_mode=True)
+                if self.best_kale< kale:
+                    self.best_kale= kale
+                    self.save_checkpoint(epoch,best=True)
             # only train specified network(s)
             if self.args.train_which == 'both':
                 self.train_epoch()
             elif self.args.train_which == 'discriminator':
-                self.train_discriminator_epoch()
-            if np.mod(epoch, 10) == 0 or epoch == 1:
-                self.evaluate_training()
+                self.train_discriminator_epoch(epoch)
             if np.mod(epoch, 5) == 0:
                 self.save_checkpoint(epoch)
+        self.save_loss()
 
     # train for one epoch
     def train_epoch(self):
@@ -170,7 +192,7 @@ class Trainer(object):
             self.scheduler_g.step()
 
     # same as train_epoch, but shortcut to just train the discriminator
-    def train_discriminator_epoch(self):
+    def train_discriminator_epoch(self,epoch):
         accum_loss = []
         for batch_idx, (data, target) in enumerate(self.train_loader):
             data = data.to(self.device).clone().detach()
@@ -180,6 +202,10 @@ class Trainer(object):
                 ad = np.asarray(accum_loss)
                 print(f' critic loss (mean|std): {ad.mean()} | {ad.std()}')
                 accum_loss = []
+
+        self.d_loss_train['loss'].append(ad.mean())
+        self.d_loss_train['loss_std'].append(ad.std())
+        self.d_loss_train['epoch'].append(epoch)
         if self.args.use_scheduler:
             self.scheduler_d.step()
 
@@ -188,12 +214,14 @@ class Trainer(object):
         if net_type=='discriminator':           
             optimizer = self.optim_d
             self.discriminator.train()
+            self.generator.eval()
         elif net_type=='generator':
             optimizer = self.optim_g
             self.generator.train()
+            self.discriminator.eval()
         optimizer.zero_grad()
         # get data and run through discriminator
-        Z = self.noise_gen.sample()
+        Z = self.noise_gen.sample([data.shape[0]])
         fake_data = self.generator(Z)
         true_results = self.discriminator(data)
         fake_results = self.discriminator(fake_data)
@@ -210,7 +238,7 @@ class Trainer(object):
         total_loss.backward()
         self.grad_clip(optimizer)
         optimizer.step()
-        return total_loss
+        return loss
     def grad_clip(self,optimizer):
         params = optimizer.param_groups[0]['params']
         for i, param in enumerate(params):
@@ -221,30 +249,40 @@ class Trainer(object):
                 print('nan grad')
                 param.grad.data = torch.zeros_like(new_grad)
     # save model parameters from a checkpoint, only used when training
-    def save_checkpoint(self, epoch):
+    def save_checkpoint(self, epoch,best=False):
         if self.args.save_nothing:
             return
         if self.args.train_which != 'generator':
             d_dict = self.discriminator.state_dict()
             if self.args.criterion == 'kale':
                 d_dict['log_partition'] = self.log_partition
-            d_path = os.path.join(self.checkpoint_dir, f'd_{epoch}.pth')
+                if best:
+                    d_path = os.path.join(self.checkpoint_dir, f'd_best.pth')
+                else:
+                    d_path = os.path.join(self.checkpoint_dir, f'd_{epoch}.pth')
             torch.save(d_dict, d_path)
             print(f'Saved {d_path}')
         if self.args.train_which != 'discriminator':
-            g_path = os.path.join(self.checkpoint_dir, f'g_{epoch}.pth')
+            if best:
+                g_path = os.path.join(self.checkpoint_dir, f'g_best.pth')
+            else:    
+                g_path = os.path.join(self.checkpoint_dir, f'g_{epoch}.pth')
             torch.save(self.generator.state_dict(), g_path)
             print(f'Saved {g_path}')
-
+    def save_loss(self):
+        with open(os.path.join(self.samples_dir, 'd_loss.pkl'), 'wb') as f:
+                pkl.dump(self.d_loss_train, f)
     # just evaluate the performance (via KALE metric) during training
-    def evaluate_training(self):
-        self.discriminator.eval()
-        self.generator.eval()
+    def evaluate_training(self,eval_mode=False):
+        if eval_mode:
+            self.discriminator.eval()
+            #self.generator.eval()
         kales, mean_fake, images, Zs = self.acc_stats(eval_posterior=False)
-        self.sample_images()
+        #self.sample_images()
 
-        print(f'KALE: {kales["prior"]} (fake: {mean_fake["prior"]})')
-
+        print(f'Test KALE: {kales["prior"]} (fake: {mean_fake["prior"]})')
+        print(f'Train KALE: {kales["train"]} (fake: {mean_fake["train"]})')
+        return kales["train"]
 
 
 
@@ -323,7 +361,7 @@ class Trainer(object):
 
 
     # calculate KALE and generated images
-    def acc_stats(self, eval_posterior, eval_id=0):
+    def acc_stats(self, eval_posterior, eval_id=0,load_from_file=False):
         # change as necessary depending on the GPU
         bb_size = self.args.bb_size
         n_batches = int(self.args.fid_samples / bb_size) + 1
@@ -337,19 +375,21 @@ class Trainer(object):
         # only use posterior samples if we want them
         if eval_posterior:
             # check if we already have a Z we can just load so we don't have to compute everything
-            fname = os.path.join(self.args.Z_folder, f'Z_eval_{eval_id}.pkl')
+            s_types = ['prior', 'posterior']
+        else:
+            s_types = ['prior']
+        
+        if load_from_file:
+            fname = os.path.join(self.samples_dir, f'Z_eval_{eval_id}.pkl')
             if len(self.args.Z_folder) > 0 and os.path.isfile(fname):
                 with open(fname, 'rb') as f:
                     Zs = pkl.load(f)
                     Z_keys = list(Zs)
                     f_exists = True
-            s_types = ['prior', 'posterior']
-        else:
-            s_types = ['prior']
-        
+
+
         # multiple batches, otherwise get memory issues
         print(f'==> Generating samples, with posterior sampling: {eval_posterior}')
-        normal_gen = torch.distributions.Normal(torch.zeros((bb_size, self.args.Z_dim)).to(self.device),1)
 
         for s in s_types:
             print(f'Running type: {s}')
@@ -360,27 +400,33 @@ class Trainer(object):
                     print(f'  Starting batch {b+1}/{n_batches}, avg time {avg_time}s')
                 if m < self.args.fid_samples:
                     # normally take batches of size bb_size, unless it's the last batch
-                    bl = min(self.args.fid_samples - m, bb_size)
+                    
                     st = time.time()
                     
                     # if we want to generate posterior samples, here's where it happens
-                    if not f_exists or s not in Z_keys:
-                        prior_Z = normal_gen.sample()
+                    #if not f_exists or s not in Z_keys:
+                    
+                    if f_exists:
+                        bl = min(self.args.fid_samples - m, bb_size)
+                        posterior_Z = Zs[s][m:m+bl].to(self.device)
+                    else:
+                        prior_Z = self.noise_gen.sample([bb_size])
+                        bl = min(self.args.fid_samples - m, prior_Z.shape[0])
                         if s == 'posterior':
-                            posterior_Z = cp.sample_posterior(
-                                prior_z=prior_Z,
-                                g=self.generator,
-                                h=self.discriminator,
-                                device=self.device,
-                                T=self.args.num_lmc_steps,
-                                extract_every=0,
-                                kappa=self.args.lmc_kappa,
-                                gamma=self.args.lmc_gamma
-                            )
+                            posterior_Z = self.latent_sampler.sample(prior_Z)
+
+                            # posterior_Z = cp.sample_posterior(
+                            #     prior_z=prior_Z,
+                            #     g=self.generator,
+                            #     h=self.discriminator,
+                            #     device=self.device,
+                            #     T=self.args.num_lmc_steps,
+                            #     extract_every=0,
+                            #     kappa=self.args.lmc_kappa,
+                            #     gamma=self.args.lmc_gamma
+                            # )
                         else:
                             posterior_Z = prior_Z
-                    else:
-                        posterior_Z = Zs[s][m:m+bl].to(self.device)
 
                     # online calculating of avg time
                     et = time.time()
@@ -421,14 +467,29 @@ class Trainer(object):
                 m += real_results.size(0)
             mean_real /= m
 
+
+        with torch.no_grad():
+            m = 0
+            mean_real_train = 0
+            for batch_idx, (data, target) in enumerate(self.train_loader):
+                # get real data and run through discriminator
+                data = data.to(self.device).detach()
+                real_results = self.discriminator(data) + self.log_partition
+                mean_real_train += -real_results.sum()
+                m += real_results.size(0)
+            mean_real_train /= m
+
         KALE = {}
         print(f'real: {mean_real} | lp: {self.log_partition.item()}')
+        
         for s in s_types:
             KALE[s] = (mean_real + mean_fake[s] + 1).item()
             mean_fake[s] = mean_fake[s].item()
 
+        KALE['train'] = (mean_real_train + mean_fake['prior'] + 1).item()
+        mean_fake['train'] = 1.*mean_fake['prior']
         # if we created posteriors, then save it because these are hard to generate
-        if eval_posterior and not f_exists and not self.args.save_nothing:
+        if not f_exists and not self.args.save_nothing:
             fname = os.path.join(self.samples_dir, f'Z_eval_{eval_id}.pkl')
             with open(fname, 'wb') as f:
                 pkl.dump(Zs, f)
@@ -445,45 +506,69 @@ class Trainer(object):
 
         assert self.with_fid
         #fname = os.path.join(self.log_dir, f'posterior_data_{self.run_id}.pkl')
-
-        total_extract_time = 300
-        extract_every = 10
+        #kale = self.evaluate_training(eval_mode=True)
+        total_extract_time = self.args.num_lmc_steps
+        thinning = 10
 
         avg_time = 0
 
         bb_size = self.args.bb_size
         n_batches = int(self.args.fid_samples / bb_size) + 1
 
+        torch.manual_seed(self.args.seed)
+        np.random.seed(self.args.seed)
         m = 0
-        normal_gen = torch.distributions.Normal(torch.zeros((bb_size, self.args.Z_dim)).to(self.device),1)
         images = []
         print('==> Evaluating successive FIDs')
+        all_posterior_Zs = []
+        all_posterior_ts = []
+        all_avg_acceptence = []
         for b in range(n_batches):
             if b % 5 == 0:
                 print(f'  Starting batch {b+1}/{n_batches}, avg time {avg_time}s')
             if m < self.args.fid_samples:
                 bl = min(self.args.fid_samples - m, bb_size)
                 st = time.time()
-                prior_Z = normal_gen.sample()
-
-                posterior_ts, posterior_Zs = cp.sample_posterior(
-                    prior_z=prior_Z,
-                    g=self.generator,
-                    h=self.discriminator,
-                    device=self.device,
-                    T=total_extract_time,
-                    extract_every=extract_every,
-                    kappa=self.args.lmc_kappa,
-                    gamma=self.args.lmc_gamma
-                )
+                prior_Z = self.noise_gen.sample([bb_size])
+                posterior_ts, posterior_Zs,avg_acceptence_list = self.latent_sampler.sample(prior_Z,sample_chain=True,T=total_extract_time, thinning=thinning)
+                # posterior_ts, posterior_Zs = cp.sample_posterior(
+                #     prior_z=prior_Z,
+                #     g=self.generator,
+                #     h=self.discriminator,
+                #     device=self.device,
+                #     T=total_extract_time,
+                #     extract_every=thinning,
+                #     kappa=self.args.lmc_kappa,
+                #     gamma=self.args.lmc_gamma
+                # )
+                num_dps = len(posterior_Zs)
                 et = time.time()
+                
                 avg_time = avg_time*b/(b+1) + (et-st)/(b+1)
                 
-                num_dps = len(posterior_Zs)
+
+                #num_dps = 100
+                #posterior_Zs = num_dps*[prior_Z]
+                #posterior_ts = list(np.array(range(num_dps)))
+                all_posterior_Zs.append(posterior_Zs)
+                all_posterior_ts.append(posterior_ts)
+                all_avg_acceptence.append(avg_acceptence_list)
+                m += prior_Z.size(0)
+        m = 0
+        for b in range(n_batches):
+            if b % 5 == 0:
+                print(f' Generating samples {b+1}/{n_batches}')
+            if m < self.args.fid_samples:
+                bl = min(self.args.fid_samples - m, bb_size)
+                if self.args.train_mode_fid:
+                    self.generator.train()
+                else:
+                    self.generator.eval()                
                 with torch.no_grad():
                     for i in range(num_dps):
                         # could be small (because it's the last batch)
-                        posterior_Z = posterior_Zs[i][:bl].to(self.device)
+                        posterior_Z = all_posterior_Zs[b][i][:bl].to(self.device)
+                        
                         fake_data = self.generator(posterior_Z)
                         if b == 0:
                             images.append(torch.zeros([self.args.fid_samples]+list(fake_data.shape[1:])))
@@ -491,16 +576,19 @@ class Trainer(object):
                     m += fake_data.size(0)
 
         fids = []
+        all_avg_acceptence = np.array(all_avg_acceptence)
+        all_avg_acceptence = np.mean(all_avg_acceptence,axis=0)
+
         for i, dp in enumerate(images):
             # save the posteriors
-            fname = os.path.join(self.samples_dir, f'{self.run_id}_{str(i*extract_every).zfill(3)}_Z.pkl')
+            fname = os.path.join(self.samples_dir, f'{self.run_id}_{str(i*thinning).zfill(3)}_Z.pkl')
             with open(fname, 'wb') as f:
                 pkl.dump(dp.detach().numpy(), f)
             # save the images themselves
-            self.save_images(dp, name=f'{self.run_id}_{str(i*extract_every).zfill(3)}')
+            self.save_images(dp, name=f'{self.run_id}_{str(i*thinning).zfill(3)}')
             fid = cp.compute_fid(self.args, self.device, dp, self.fid_model, self.train_loader, self.test_loader)
             fids.append(fid)
-            print(F'FID at step {i*extract_every}: {fids[i]}')
+            print(F'FID at step {i*thinning}: {fids[i]}, aceeptance {all_avg_acceptence[i]}')
 
         # save a json of the FIDs
         fids_train = [i[0] for i in fids]
@@ -521,19 +609,21 @@ class Trainer(object):
             return
         self.discriminator.eval()
         self.generator.eval()
-        normal_gen = hp.get_normal(self.args, self.device, 64)
-        prior_z = normal_gen.sample()
+        normal_gen = hp.get_normal(self.args, self.device)
+        prior_z = normal_gen.sample([64])
         print(f'==> Producing 64 samples...')
-        posterior_z = cp.sample_posterior(
-            prior_z=prior_z,
-            g=self.generator,
-            h=self.discriminator,
-            device=self.device,
-            T=self.args.num_lmc_steps,
-            extract_every=0,
-            kappa=self.args.lmc_kappa,
-            gamma=self.args.lmc_gamma
-            )
+        posterior_z  = self.latent_sampler.sample(prior_z)
+
+        # posterior_z = cp.sample_posterior(
+        #     prior_z=prior_z,
+        #     g=self.generator,
+        #     h=self.discriminator,
+        #     device=self.device,
+        #     T=self.args.num_lmc_steps,
+        #     extract_every=0,
+        #     kappa=self.args.lmc_kappa,
+        #     gamma=self.args.lmc_gamma
+        #     )
         z_dic = {
             'prior': prior_z,
             'posterior': posterior_z

@@ -45,7 +45,7 @@ parser.add_argument('--total_epochs', default=100, type=int, help='total number 
 parser.add_argument('--g_model', default = 'dcgan' ,type= str,  help='check models/generator.py')
 parser.add_argument('--d_model', default = 'vanilla' ,type= str,  help='check models/disciminator.py')
 
-parser.add_argument('--Z_folder', default='', type=str, help='stored Zs')
+parser.add_argument('--Z_folder', default='z_folder', type=str, help='stored Zs')
 parser.add_argument('--bb_size', type=int, default=1000, help='# Zs per batch, running out of memory is bad')
 
 # sampling noise parameters
@@ -69,7 +69,7 @@ parser.add_argument('--lr_generator', default=0.0002, type=float, help='lr')
 
 # regularization
 parser.add_argument('--penalty_type', default = 'gradient_l2',type= str,  help='type of regularization to add')
-parser.add_argument('--penalty_lambda', default=0.001, type=float, help='learning rate')
+parser.add_argument('--penalty_lambda', default=0.1, type=float, help='learning rate')
 
 # training parameters
 
@@ -79,8 +79,8 @@ parser.add_argument('--Z_dim', default = 128, type= int,  help='dimension of lat
 
 # Scheduler parameters 
 parser.add_argument('--use_scheduler', action='store_true', help='gpu device')
-parser.add_argument('--scheduler',  default ='ExponentialLR' ,type= str ,  help='gpu device')
-parser.add_argument('--milestone',  default = '100,200,300' ,type= str ,  help='gpu device')
+parser.add_argument('--scheduler',  default ='MultiStepLR' ,type= str ,  help='gpu device')
+parser.add_argument('--milestone',  default = '10,50,70' ,type= str ,  help='gpu device')
 parser.add_argument('--scheduler_gamma',  default=0.99, type= float, help='gpu device')
 parser.add_argument('--lr_decay',  default = 0.9 ,type= float ,  help='learning rate decay')
 
@@ -90,9 +90,13 @@ parser.add_argument('--config',  default ='' ,type= str ,  help='use config file
 
 parser.add_argument('--with_fid', action='store_true', help='calculate FID, but takes time')
 parser.add_argument('--fid_samples', default = 50000, type= int,  help='number of samples to take to calculate FID')
+parser.add_argument('--lmc_sampler_chain', action='store_true', help='calculate FID, but takes time')
 
+parser.add_argument('--latent_sampler',  default ='langevin' ,type= str ,  help='calculate FID, but takes time')
 
-
+parser.add_argument('--bn', action='store_true', help='calculate FID, but takes time')
+parser.add_argument('--skipinit', action='store_true', help='calculate FID, but takes time')
+parser.add_argument('--train_mode_fid', action='store_true', help='calculate FID, but takes time')
 
 
 args = parser.parse_args()
