@@ -11,11 +11,9 @@ criterion : 'kale'
 # load pretrained weights
 g_path : 'weights/dcgan/netG_epoch_199.pth'
 log_dir : 'logs'
-log_name : 'sampler'
 
 penalty_type : 'gradient'
-penalty_lambda : 0.0
-
+penalty_lambda : 0.1
 
 # train
 #mode : train
