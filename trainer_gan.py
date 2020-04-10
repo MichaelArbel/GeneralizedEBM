@@ -100,7 +100,6 @@ class Trainer(object):
 
             self.loss = hp.get_loss(self.args)
             
-
             self.counter = 0
             self.g_loss = torch.tensor(0.)
             self.d_loss = torch.tensor(0.)
@@ -239,6 +238,8 @@ class Trainer(object):
         self.grad_clip(optimizer)
         optimizer.step()
         return loss
+
+    # gradient clipping, applied in self.iteration
     def grad_clip(self,optimizer):
         params = optimizer.param_groups[0]['params']
         for i, param in enumerate(params):
@@ -248,6 +249,7 @@ class Trainer(object):
             else:
                 print('nan grad')
                 param.grad.data = torch.zeros_like(new_grad)
+
     # save model parameters from a checkpoint, only used when training
     def save_checkpoint(self, epoch,best=False):
         if self.args.save_nothing:
