@@ -15,7 +15,7 @@ spectral_norm = sn_official
 
 
 class Discriminator(nn.Module):
-    def __init__(self, nn_type='dcgan',bn=False,skipinit=False, **kwargs):
+    def __init__(self, nn_type='dcgan',bn=True,skipinit=False, **kwargs):
         super().__init__()
 
         self.nn_type = nn_type
@@ -41,6 +41,16 @@ class Discriminator(nn.Module):
             if 'leak' in kwargs:
                 leak = kwargs['leak']
 
+            if bn:
+                bn1 = nn.BatchNorm2d(ndf * 2)
+                bn2 = nn.BatchNorm2d(ndf * 4)
+                bn3 = nn.BatchNorm2d(ndf * 8)
+            else:
+                bn1 = nn.Identity()
+                bn2 = nn.Identity()
+                bn3 = nn.Identity()
+
+
             self.main = nn.Sequential(
                 # input is (nc) x 64 x 64
                 # nn.Conv2d(in_channels, out_channels, kernel_size, stride, padding, dilation...)
@@ -48,15 +58,15 @@ class Discriminator(nn.Module):
                 nn.LeakyReLU(leak, inplace=True),
                 # state size. (ndf) x 32 x 32
                 nn.Conv2d(ndf, ndf * 2, 4, 2, 1, bias=False),
-                nn.BatchNorm2d(ndf * 2),
+                bn1,
                 nn.LeakyReLU(leak, inplace=True),
                 # state size. (ndf*2) x 16 x 16
                 nn.Conv2d(ndf * 2, ndf * 4, 4, 2, 1, bias=False),
-                nn.BatchNorm2d(ndf * 4),
+                bn2,
                 nn.LeakyReLU(leak, inplace=True),
                 # state size. (ndf*4) x 8 x 8
                 nn.Conv2d(ndf * 4, ndf * 8, 4, 2, 1, bias=False),
-                nn.BatchNorm2d(ndf * 8),
+                bn3,
                 nn.LeakyReLU(leak, inplace=True),
                 # state size. (ndf*8) x 4 x 4
                 #nn.Conv2d(ndf * 8, 1, 4, 1, 0, bias=False),
@@ -153,10 +163,10 @@ class Discriminator(nn.Module):
             nn.init.xavier_uniform_(self.fc.weight.data, 1.)
 
             self.main = nn.Sequential(
-                FirstResBlockDiscriminator(nc, self.disc_size, stride=2, sn=1,bn=bn,skipinit=skipinit),
-                ResBlockDiscriminator(self.disc_size, self.disc_size, stride=2, sn=1,bn=bn,skipinit=skipinit),
-                ResBlockDiscriminator(self.disc_size, self.disc_size, sn=1,bn=bn,skipinit=skipinit),
-                ResBlockDiscriminator(self.disc_size, self.disc_size, sn=1,bn=bn,skipinit=skipinit),
+                FirstResBlockDiscriminator(nc, self.disc_size, stride=2, sn=True,bn=bn,skipinit=skipinit),
+                ResBlockDiscriminator(self.disc_size, self.disc_size, stride=2, sn=True,bn=bn,skipinit=skipinit),
+                ResBlockDiscriminator(self.disc_size, self.disc_size, sn=True,bn=bn,skipinit=skipinit),
+                ResBlockDiscriminator(self.disc_size, self.disc_size, sn=True,bn=bn,skipinit=skipinit),
                 nn.ReLU(),
                 nn.AvgPool2d(8),
                 nn.Flatten(),
@@ -172,10 +182,10 @@ class Discriminator(nn.Module):
             nn.init.xavier_uniform_(self.fc.weight.data, 1.)
             bn = self.bn
             self.main = nn.Sequential(
-                FirstResBlockDiscriminator(nc, self.disc_size, stride=2, sn=0,bn=bn,skipinit=skipinit),
-                ResBlockDiscriminator(self.disc_size, self.disc_size, stride=2, sn=0,bn=bn,skipinit=skipinit),
-                ResBlockDiscriminator(self.disc_size, self.disc_size, sn=0,bn=bn,skipinit=skipinit),
-                ResBlockDiscriminator(self.disc_size, self.disc_size, sn=0,bn=bn,skipinit=skipinit),
+                FirstResBlockDiscriminator(nc, self.disc_size, stride=2, sn=False,bn=bn,skipinit=skipinit),
+                ResBlockDiscriminator(self.disc_size, self.disc_size, stride=2, sn=False,bn=bn,skipinit=skipinit),
+                ResBlockDiscriminator(self.disc_size, self.disc_size, sn=False,bn=bn,skipinit=skipinit),
+                ResBlockDiscriminator(self.disc_size, self.disc_size, sn=False,bn=bn,skipinit=skipinit),
                 nn.ReLU(),
                 nn.AvgPool2d(8),
                 nn.Flatten(),
@@ -204,10 +214,10 @@ class Discriminator(nn.Module):
 
 class ResBlockDiscriminator(nn.Module):
 
-    def __init__(self, in_channels, out_channels, stride=1, sn=1,bn=True,skipinit=False):
+    def __init__(self, in_channels, out_channels, stride=1, sn=True,bn=True,skipinit=False):
         super(ResBlockDiscriminator, self).__init__()
 
-        if sn == 1:
+        if sn:
             spec_norm = spectral_norm
         else:
             def spec_norm(x):

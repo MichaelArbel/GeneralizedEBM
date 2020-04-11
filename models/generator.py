@@ -4,7 +4,7 @@ import torch.nn.functional as F
 
 
 class Generator(nn.Module):
-    def __init__(self, nz=100, nn_type='dcgan', **kwargs):
+    def __init__(self, nz=100, nn_type='dcgan', bn=False, **kwargs):
         super().__init__()
 
         self.nn_type = nn_type
@@ -88,11 +88,16 @@ class Generator(nn.Module):
             nn.init.xavier_uniform_(self.dense.weight.data, 1.)
             nn.init.xavier_uniform_(self.final.weight.data, 1.)
 
+            if bn:
+                bn1 = nn.BatchNorm2d(self.gen_size)
+            else:
+                bn1 = nn.Identity()
+
             self.main = nn.Sequential(
                 ResBlockGenerator(self.gen_size, self.gen_size, stride=2),
                 ResBlockGenerator(self.gen_size, self.gen_size, stride=2),
                 ResBlockGenerator(self.gen_size, self.gen_size, stride=2),
-                nn.BatchNorm2d(self.gen_size),
+                bn1,
                 nn.ReLU(),
                 self.final,
                 nn.Tanh()
@@ -105,7 +110,7 @@ class Generator(nn.Module):
     def forward(self, input):
         if self.nn_type in ['dcgan', 'dcgan-sn']:
             output = self.main(input.view(-1, self.z_dim, 1, 1))
-        elif self.nn_type in ['spectral-resnet']:
+        elif self.nn_type in ['resnet-sn']:
             output = self.main(self.dense(input).view(-1, self.gen_size, 4, 4))
         
         return output
@@ -118,7 +123,7 @@ class Generator(nn.Module):
 
 class ResBlockGenerator(nn.Module):
 
-    def __init__(self, in_channels, out_channels, stride=1):
+    def __init__(self, in_channels, out_channels, stride=1, bn=True):
         super(ResBlockGenerator, self).__init__()
 
         self.conv1 = nn.Conv2d(in_channels, out_channels, 3, 1, padding=1)
@@ -126,12 +131,19 @@ class ResBlockGenerator(nn.Module):
         nn.init.xavier_uniform_(self.conv1.weight.data, 1.)
         nn.init.xavier_uniform_(self.conv2.weight.data, 1.)
 
+        if bn:
+            bn1 = nn.BatchNorm2d(in_channels)
+            bn2 = nn.BatchNorm2d(out_channels)
+        else:
+            bn1 = nn.Identity()
+            bn2 = nn.Identity()
+
         self.model = nn.Sequential(
-            nn.BatchNorm2d(in_channels),
+            bn1,
             nn.ReLU(),
             nn.Upsample(scale_factor=2),
             self.conv1,
-            nn.BatchNorm2d(out_channels),
+            bn2,
             nn.ReLU(),
             self.conv2
             )
