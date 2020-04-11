@@ -9,4 +9,8 @@ scripts/
 swc_sshfs/
 __pycache__/
 
+_cache_*
+generator_training/
+logs_lsun/
+
 playground/

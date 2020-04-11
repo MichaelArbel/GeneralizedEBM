@@ -1,0 +1,42 @@
+b_size: 128
+dataset: cifar10
+
+total_epochs: 100
+
+g_model : 'dcgan'
+d_model : 'resnet-sn'
+
+optimizer: Adam
+
+criterion : 'kale'
+
+# load pretrained weights
+# use a single generator for all tests
+d_path : 'logs/train_resnet_sn/train/checkpoints/d_best_70.pth'
+g_path : 'weights/dcgan/netG_epoch_199.pth'
+
+log_dir : 'logs'
+log_name : 'sample_resnet-sn_langevin'
+
+penalty_type : 'gradient_l2'
+penalty_lambda : 10
+with_fid : True
+
+# train
+mode : fids
+fid_samples : 50000
+
+# sampling stuff
+Z_dim : 100
+bb_size : 500
+
+log_to_file : True
+
+
+lmc_gamma : .01
+#lmc_kappa : .
+latent_sampler : 'langevin'
+num_lmc_steps : 1000
+seed : 0
+train_mode_fid : False
+

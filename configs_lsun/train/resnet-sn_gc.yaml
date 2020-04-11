@@ -1,5 +1,5 @@
 b_size: 128
-dataset: cifar10
+dataset: lsun
 total_epochs: 100
 
 g_model : 'dcgan'
@@ -9,12 +9,11 @@ optimizer: Adam
 criterion : 'kale'
 
 # load pretrained weights
-g_path : 'weights/dcgan/netG_epoch_199.pth'
-log_dir : 'logs'
+g_path : 'weights/lsun/netG_epoch_10.pth'
+log_dir : 'logs_lsun'
 
 penalty_type : 'none'
 penalty_lambda : 0.0
-
 
 # train
 #mode : train
