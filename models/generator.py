@@ -19,18 +19,8 @@ class Generator(nn.Module):
             # adapted from pytorch website
             # https://pytorch.org/tutorials/beginner/dcgan_faces_tutorial.html#implementation
 
-            # defaults
-            nc = 3
-            ngf = 64
-
             # nc = number of channels
             # ngf = number of generator filters
-
-            if 'nc' in kwargs:
-                nc = kwargs['nc']
-            if 'ndf' in kwargs:
-                ndf = kwargs['ndf']
-
             self.main = nn.Sequential(
                 # input is Z, going into a convolution
                 nn.ConvTranspose2d(nz, ngf * 8, 4, 1, 0, bias=False),

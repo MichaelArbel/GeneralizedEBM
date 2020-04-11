@@ -29,17 +29,9 @@ class Discriminator(nn.Module):
             # nc = number of input channels (input image size square)
             # ndf = number of filters, state sizes
 
-            # defaults
             nc = 3
             ndf = 64
             leak = 0.2
-
-            if 'nc' in kwargs:
-                nc = kwargs['nc']
-            if 'ndf' in kwargs:
-                ndf = kwargs['ndf']
-            if 'leak' in kwargs:
-                leak = kwargs['leak']
 
             if bn:
                 bn1 = nn.BatchNorm2d(ndf * 2)
@@ -81,12 +73,15 @@ class Discriminator(nn.Module):
             ndf = 64
             leak = 0.2
 
-            if 'nc' in kwargs:
-                nc = kwargs['nc']
-            if 'ndf' in kwargs:
-                ndf = kwargs['ndf']
-            if 'leak' in kwargs:
-                leak = kwargs['leak']
+            if bn:
+                bn1 = nn.BatchNorm2d(ndf * 2)
+                bn2 = nn.BatchNorm2d(ndf * 4)
+                bn3 = nn.BatchNorm2d(ndf * 8)
+            else:
+                bn1 = nn.Identity()
+                bn2 = nn.Identity()
+                bn3 = nn.Identity()
+
 
             self.main = nn.Sequential(
                 # input is (nc) x 64 x 64
@@ -94,13 +89,13 @@ class Discriminator(nn.Module):
                 nn.Conv2d(nc, ndf, 4, 2, 1, bias=False),
                 nn.LeakyReLU(leak, inplace=True),
                 nn.Conv2d(ndf, ndf * 2, 4, 2, 1, bias=False),
-                nn.BatchNorm2d(ndf * 2),
+                bn1,
                 nn.LeakyReLU(leak, inplace=True),
                 nn.Conv2d(ndf * 2, ndf * 4, 4, 2, 1, bias=False),
-                nn.BatchNorm2d(ndf * 4),
+                bn2,
                 nn.LeakyReLU(leak, inplace=True),
                 nn.Conv2d(ndf * 4, ndf * 8, 4, 2, 1, bias=False),
-                nn.BatchNorm2d(ndf * 8),
+                bn3,
                 nn.LeakyReLU(leak, inplace=True),
                 # state size. (ndf*8) x 4 x 4
                 #nn.Conv2d(ndf * 8, 1, 4, 1, 0, bias=False),
@@ -117,13 +112,6 @@ class Discriminator(nn.Module):
             ndf = 64
             leak = 0.1
             w_g = 4
-
-            if 'nc' in kwargs:
-                nc = kwargs['nc']
-            if 'ndf' in kwargs:
-                ndf = kwargs['ndf']
-            if 'leak' in kwargs:
-                leak = kwargs['leak']
 
             self.main = nn.Sequential(
                 # layer 1
@@ -222,7 +210,6 @@ class ResBlockDiscriminator(nn.Module):
         else:
             def spec_norm(x):
                 return x
-        self.use_bn=bn
         if skipinit:
             self.bias = nn.Parameter(torch.tensor(0.))
             self.scaling = nn.Parameter(torch.tensor(0.))
@@ -232,7 +219,7 @@ class ResBlockDiscriminator(nn.Module):
 
         self.conv1 = nn.Conv2d(in_channels, out_channels, 3, 1, padding=1)
         self.conv2 = nn.Conv2d(out_channels, out_channels, 3, 1, padding=1)
-        if self.use_bn:
+        if bn:
             self.bn1 = nn.BatchNorm2d(out_channels)
             self.bn2 = nn.BatchNorm2d(out_channels)
         else:
@@ -287,7 +274,6 @@ class FirstResBlockDiscriminator(nn.Module):
             def spec_norm(x):
                 return x
 
-        self.use_bn=bn
         if skipinit:
             self.bias = nn.Parameter(torch.tensor(0.))
             self.scaling = nn.Parameter(torch.tensor(0.))
@@ -297,7 +283,7 @@ class FirstResBlockDiscriminator(nn.Module):
         self.conv1 = nn.Conv2d(in_channels, out_channels, 3, 1, padding=1)
         self.conv2 = nn.Conv2d(out_channels, out_channels, 3, 1, padding=1)
         self.bypass_conv = nn.Conv2d(in_channels, out_channels, 1, 1, padding=0)
-        if self.use_bn:        
+        if bn:        
             self.bn1 = nn.BatchNorm2d(out_channels)
             self.bn2 = nn.BatchNorm2d(out_channels)
             self.bn3 = nn.BatchNorm2d(out_channels)
