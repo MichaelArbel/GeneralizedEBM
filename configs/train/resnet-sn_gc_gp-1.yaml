@@ -12,8 +12,8 @@ criterion : 'kale'
 g_path : 'weights/dcgan/netG_epoch_199.pth'
 log_dir : 'logs'
 
-penalty_type : 'none'
-penalty_lambda : 0.0
+penalty_type : 'gradient'
+penalty_lambda : 1.0
 
 
 # train

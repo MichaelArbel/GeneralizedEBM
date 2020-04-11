@@ -8,6 +8,7 @@ import time
 #import thop
 import ast
 from torchvision.datasets import CIFAR10
+import torchvision.datasets as dset
 import torchvision.transforms as transforms
 
 import torch
@@ -40,12 +41,17 @@ def get_data_loader(args):
     if args.dataset == 'cifar10':
         spatial_size = 32
 
-        trainset = CIFAR10(root='./data', train=True, download=True, transform=transform_train)
+        trainset = dset.CIFAR10(root='./data', train=True, download=True, transform=transform_train)
         trainloader = torch.utils.data.DataLoader(trainset, batch_size=args.b_size, shuffle=True, num_workers=args.num_workers)
-        n_classes=10
-        testset = CIFAR10(root='./data', train=False, download=True, transform=transform_test)
-        testloader = torch.utils.data.DataLoader(testset, batch_size=args.b_size, shuffle=False, num_workers=args.num_workers)
 
+        testset = dset.CIFAR10(root='./data', train=False, download=True, transform=transform_test)
+        testloader = torch.utils.data.DataLoader(testset, batch_size=args.b_size, shuffle=False, num_workers=args.num_workers)
+    elif args.dataset == 'lsun':
+        trainset = dset.LSUN(root='./data', classes=['bedroom_train'], transform=transform_train)
+        trainloader = torch.utils.data.DataLoader(trainset, batch_size=args.b_size, shuffle=True, num_workers=args.num_workers)
+
+        testset = dset.LSUN(root='./data', classes=['bedroom_val'], transform=transform_test)
+        testloader = torch.utils.data.DataLoader(testset, batch_size=args.b_size, shuffle=False, num_workers=args.num_workers)
     else:
         raise NotImplementedError
     return trainloader,testloader

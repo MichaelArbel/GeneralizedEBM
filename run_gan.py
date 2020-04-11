@@ -23,7 +23,7 @@ parser = argparse.ArgumentParser(description='PyTorch CIFAR10 Training')
 
 # log parameters
 parser.add_argument('--log_dir', default='logs', type= str, help='top-level logs directory')
-parser.add_argument('--log_name', type=str, help='name for the run')
+parser.add_argument('--log_name', default=None, type=str, help='name for the run')
 parser.add_argument('--d_path', default=None, help='path to discriminator checkpoint')
 parser.add_argument('--g_path', default=None, help='path to generator checkpoint')
 parser.add_argument('--log_to_file', action='store_true', help='log stdout/stderr to logfile')
@@ -101,6 +101,11 @@ parser.add_argument('--train_mode_fid', action='store_true', help='calculate FID
 
 args = parser.parse_args()
 args = make_flags(args, args.config)
+
+if args.log_name is None:
+    assert len(args.config) != 0, 'Error: no log name'
+    args.log_name = '.'.join(args.config.split('/')[-1].split('.')[:-1])
+
 trainer = Trainer(args)
 
 # check whether we want to load a pretrained model depending on the given parameters
