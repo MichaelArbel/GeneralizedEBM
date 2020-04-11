@@ -144,7 +144,7 @@ class Trainer(object):
         # want epochs to start at 1
         for epoch in range(1, self.args.total_epochs + 1):
             print(f'Epoch: {epoch}')
-            if np.mod(epoch, 1) == 0 or epoch == 1:
+            if np.mod(epoch, 5) == 0 or epoch == 1:
                 #print('no_eval_mode:')
                 #self.evaluate_training(eval_mode=False)
                 #print('eval_mode:')
@@ -152,6 +152,8 @@ class Trainer(object):
                 if self.best_kale< kale:
                     self.best_kale= kale
                     self.save_checkpoint(epoch,best=True)
+            if np.mod(epoch, 5) == 0: # frequency of sampling images
+                self.sample_images(epoch)
             # only train specified network(s)
             if self.args.train_which == 'both':
                 self.train_epoch()

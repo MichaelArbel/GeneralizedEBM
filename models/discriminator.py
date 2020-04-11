@@ -15,7 +15,7 @@ spectral_norm = sn_official
 
 
 class Discriminator(nn.Module):
-    def __init__(self, nn_type='dcgan',bn=True,skipinit=False, **kwargs):
+    def __init__(self, nn_type='dcgan',bn=False, skipinit=False, **kwargs):
         super().__init__()
 
         self.nn_type = nn_type

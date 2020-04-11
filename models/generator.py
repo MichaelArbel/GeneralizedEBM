@@ -4,7 +4,7 @@ import torch.nn.functional as F
 
 
 class Generator(nn.Module):
-    def __init__(self, nz=100, nn_type='dcgan', bn=False, **kwargs):
+    def __init__(self, nz=100, nn_type='dcgan', bn=True, **kwargs):
         super().__init__()
 
         self.nn_type = nn_type

@@ -2,34 +2,37 @@ b_size: 128
 dataset: cifar10
 total_epochs: 100
 
-g_model : 'dcgan'
+g_model : 'dcgan-sn'
 d_model : 'resnet-sn'
 
 optimizer: Adam
-
 criterion : 'kale'
 
 # load pretrained weights
-g_path : 'weights/dcgan/netG_epoch_199.pth'
-
 log_dir : 'logs'
-log_name : 'resnet-sn_gp-10'
 
-penalty_type : 'gradient_l2'
-penalty_lambda : 10
+penalty_type : 'gradient'
+penalty_lambda : 1.0
+
 
 # train
-mode : train
-train_which : 'discriminator'
+#mode : train
+train_which : 'both'
 with_fid : False
+
+#use_scheduler : True
 
 # sampling stuff
 Z_dim : 100
 bb_size : 1000
 
-log_to_file : true
-
+log_to_file : True
 
 seed : 0
+fid_samples : 50000
 
+#latent_sampler : 'hmc'
+bn : False
+skipinit : False
 
+lr : 0.0001

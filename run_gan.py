@@ -105,6 +105,8 @@ args = make_flags(args, args.config)
 if args.log_name is None:
     assert len(args.config) != 0, 'Error: no log name'
     args.log_name = '.'.join(args.config.split('/')[-1].split('.')[:-1])
+    if args.dataset == 'lsun':
+        args.log_name += '__lsun'
 
 trainer = Trainer(args)
 
