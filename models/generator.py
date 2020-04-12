@@ -2,6 +2,9 @@ from torch import nn
 
 import torch.nn.functional as F
 
+from torch.nn.utils import spectral_norm
+
+
 
 class Generator(nn.Module):
     def __init__(self, nz=100, nn_type='dcgan', bn=True, **kwargs):
@@ -44,7 +47,7 @@ class Generator(nn.Module):
 
         elif nn_type == 'dcgan-sn':
             # adapted from https://github.com/christiancosgrove/pytorch-spectral-normalization-gan
-            # with spectral norm from pytorch
+            # their dcgan is no different from the normal DCGAN
 
             self.main = nn.Sequential(
                 #nn.Linear(z_dim,)

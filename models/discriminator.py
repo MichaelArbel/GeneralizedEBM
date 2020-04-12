@@ -7,9 +7,7 @@ import math
 import torch.nn.functional as F
 
 # official implementation
-from torch.nn.utils import spectral_norm as sn_official
-spectral_norm = sn_official
-
+from torch.nn.utils import spectral_norm
 
 # much of this code taken from https://github.com/christiancosgrove/pytorch-spectral-normalization-gan
 
