@@ -1,0 +1,62 @@
+b_size: 100
+dataset: cifar10
+
+total_epochs: 2000
+
+log_dir : '/nfs/gatsbystor/michaela/projects/kale/exp/rebuttal'
+log_name : 'UCI_mog_3'
+optimizer: Adam
+
+criterion : 'kale'
+#data_name : 'redwine'
+#log_name : 'redwine'
+problem : 'unconditional'
+penalty_lambda : 0.1
+penalty_type: 'gradient_l2'
+scheduler : 'MultiStepLR'
+
+
+
+Z_factor : 20
+generator : 'made'
+
+penalty_g_lambda : 0.0001
+lr : 0.0001
+lr_generator : 0.0001
+generator : 'nvp'
+discriminator : 'nvp'
+
+dis_bn : False
+gen_bn : False
+n_iter_d : 10
+combined_discriminator : False
+
+likelihood_mode : False
+
+#g_path : '/nfs/gatsbystor/michaela/projects/kale/exp/uci_rebuttal/redwine/checkpoints/gen_999'
+
+
+true_NLL : True
+generator : 'nvp'
+discriminator : 'nvp'
+
+dis_bn : False
+gen_bn : False
+n_iter_d : 50
+combined_discriminator : True
+optimal_log_partition : True
+
+train_mode : 'adversarial'
+
+likelihood_mode : False
+
+#log_partition : -12.
+
+lr_partition : .8
+
+cd : False
+
+log_to_file : True
+
+#g_path : '/nfs/gatsbystor/michaela/projects/kale/exp/rebuttal/redwine/train/checkpoints/gen_304'
+

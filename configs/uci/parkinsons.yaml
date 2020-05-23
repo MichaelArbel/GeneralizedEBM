@@ -1,0 +1,22 @@
+b_size: 100
+dataset: cifar10
+
+total_epochs: 1000
+
+log_dir : '/nfs/gatsbystor/michaela/projects/kale/exp/uci_rebuttal'
+optimizer: Adam
+
+criterion : 'kale'
+data_name : 'parkinsons'
+#log_name : 'parkinsons'
+problem : 'unconditional'
+penalty_lambda : 0.1
+penalty_type: 'gradient_l2'
+scheduler : 'MultiStepLR'
+Z_factor : 10
+generator : 'made'
+no_progress_bar : True
+penalty_g_lambda : 0.000001
+lr : 0.0001
+
+g_path : '/nfs/gatsbystor/michaela/projects/kale/exp/uci_best/checkpoints/gen_227'
