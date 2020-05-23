@@ -53,6 +53,8 @@ seed : 0
 
 eval_fid : True
 
+temperature : 100.
+
 
 log_to_file : True
 

@@ -59,4 +59,4 @@ lmc_kappa : .04
 num_lmc_steps : 1000
 seed : 0
 eval_fid : True
-
+temperature : 100.
