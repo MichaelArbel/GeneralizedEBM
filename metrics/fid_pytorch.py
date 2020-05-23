@@ -214,7 +214,7 @@ def get_activations_from_loader(dataloader, model, device,batch_size=50, dims=20
 
     pred_arr = []
 
-    for batch_idx, data in enumerate(dataloader):
+    for batch_idx, (data,target) in enumerate(dataloader):
         if verbose:
             print('\rPropagating batch %d' % (batch_idx + 1),
                   end='', flush=True)
