@@ -1,4 +1,4 @@
-fid_b_size: 50
+fid_b_size: 100
 b_size : 2000
 
 dataset: cifar10
@@ -20,6 +20,8 @@ g_path : '/nfs/gatsbystor/michaela/projects/kale/exp/rebuttal/dcgan_kale/train/c
 d_path : '/nfs/gatsbystor/michaela/projects/kale/exp/rebuttal/sampling_cifar10_3/tune_and_fids/checkpoints_1955008/d_best.pth'
 
 log_dir : '/nfs/gatsbystor/michaela/projects/kale/exp/neurips'
+
+data_path : '/nfs/gatsbystor/michaela/projects/data/'
 log_name : 'sampling_cifar10'
 
 penalty_type : 'gradient'
@@ -53,8 +55,9 @@ seed : 0
 
 eval_fid : True
 
-temperature : 100.
+
 
 
 log_to_file : True
 
+#temperature : 100.

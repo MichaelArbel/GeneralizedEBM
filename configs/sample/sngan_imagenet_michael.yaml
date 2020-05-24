@@ -1,4 +1,4 @@
-fid_b_size: 300
+fid_b_size: 100
 b_size : 2000
 dataset: imagenet32
 
@@ -26,7 +26,7 @@ d_path : '/nfs/gatsbystor/michaela/projects/kale/exp/rebuttal/sampling_imagenet_
 imagenet_train_path: /nfs/gatsbystor/michaela/imagenet/imagenet32/out_data_train/
 imagenet_test_path: /nfs/gatsbystor/michaela/imagenet/imagenet32/out_data_val/
 
-
+data_path : '/nfs/gatsbystor/michaela/projects/data/'
 log_dir : '/nfs/gatsbystor/michaela/projects/kale/exp/neurips'
 log_name : 'sampling_imagenet_5'
 
@@ -59,4 +59,4 @@ lmc_kappa : .04
 num_lmc_steps : 1000
 seed : 0
 eval_fid : True
-temperature : 100.
+#temperature : 100.

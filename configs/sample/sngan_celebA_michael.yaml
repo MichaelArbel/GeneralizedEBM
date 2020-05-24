@@ -1,4 +1,4 @@
-fid_b_size: 300
+fid_b_size: 100
 b_size : 2000
 dataset: celebA
 
@@ -25,6 +25,8 @@ d_path : '/nfs/gatsbystor/michaela/projects/kale/exp/rebuttal/sampling_celebA_4/
 
 
 log_dir : '/nfs/gatsbystor/michaela/projects/kale/exp/neurips'
+data_path : '/nfs/gatsbystor/michaela/projects/data/'
+
 log_name : 'sampling_celebA_5'
 
 penalty_type : 'gradient'
@@ -60,6 +62,6 @@ log_to_file : True
 
 
 
-temperature : 100.
+#temperature : 100.
 
 
