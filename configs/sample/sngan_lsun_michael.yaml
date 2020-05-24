@@ -1,4 +1,4 @@
-fid_b_size: 300
+fid_b_size: 100
 b_size : 2000
 dataset: lsun
 
@@ -20,6 +20,8 @@ g_path : '/nfs/gatsbystor/michaela/projects/kale/exp/rebuttal/dcgan_kale_lsun/tr
 
 
 log_dir : '/nfs/gatsbystor/michaela/projects/kale/exp/neurips'
+data_path : '/nfs/gatsbystor/michaela/projects/data/'
+
 log_name : 'sampling_lsun_5'
 
 penalty_type : 'gradient'
@@ -51,4 +53,4 @@ num_lmc_steps : 1000
 seed : 0
 eval_fid : True
 log_to_file : True
-temperature : 100.
+#temperature : 100.

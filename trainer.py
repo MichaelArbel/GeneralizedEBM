@@ -66,7 +66,7 @@ class Trainer(object):
         self.noise_gen = hp.get_latent_noise(self.args,self.args.Z_dim, self.device)
         self.fixed_latents = self.noise_gen.sample([64])
         self.eval_latents =torch.cat([ self.noise_gen.sample([self.args.sample_b_size]).cpu() for b in range(int(self.args.fid_samples/self.args.sample_b_size)+1)], dim=0)
-        self.eval_latents = self.eval_latents[:self.args.sample_b_size]
+        self.eval_latents = self.eval_latents[:self.args.fid_samples]
         # load models if path exists, define log partition if using kale and add to discriminator
         self.d_params = list(filter(lambda p: p.requires_grad, self.discriminator.parameters()))
         if self.args.g_path is not None:

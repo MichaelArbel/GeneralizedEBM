@@ -84,11 +84,11 @@ def get_image_loader(args):
             transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
             ])
         trainset = LSUN(
-            root = './data',
+            root = args.data_path,
             classes = ['bedroom_train'],
             transform = transform_lsun)
         testset = LSUN(
-            root = './data',
+            root = args.data_path,
             classes = ['bedroom_val'],
             transform = transform_lsun)
         trainloader = torch.utils.data.DataLoader(trainset, batch_size=args.b_size, shuffle=True, num_workers=args.num_workers)
@@ -150,11 +150,11 @@ def get_image_loader(args):
         ])
 
         trainset = CelebA(
-            root = './data',
+            root = args.data_path,
             split = 'train',
             transform = transform_train,download=False)
         testset = CelebA(
-            root = './data',
+            root = args.data_path,
             split = 'train',
             transform = transform_train,download=False)
 
