@@ -138,7 +138,7 @@ def get_fid_stats(fid_model, loader, dataset, dataset_type, device):
         np.savez(path, mu=mu, sigma=sigma)
     return mu, sigma
 
-def get_activations_from_loader(dataloader, model, device,batch_size=50, dims=2048, verbose=True):
+def get_activations_from_loader(dataloader, model, device,batch_size=50, dims=2048, verbose=False):
     """Calculates the activations of the pool_3 layer for all images.
     Params:
     -- files       : List of image files paths

@@ -36,7 +36,7 @@ lr : 0.00001
 
 
 # train
-mode : fids
+mode : sample
 fid_samples : 50000
 
 # sampling stuff
@@ -46,7 +46,7 @@ sample_b_size : 2000
 
 
 
-lmc_gamma : .01
+lmc_gamma : .0001
 lmc_kappa : .04
 #latent_sampler : 'langevin'
 num_lmc_steps : 1000

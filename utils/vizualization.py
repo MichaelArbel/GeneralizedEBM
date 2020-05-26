@@ -6,8 +6,8 @@ import os
 
 def make_and_save_grid_images(images, name, samples_dir, N_h=8,N_w=8):
     N_tot = images.shape[0]
-    assert N_h*N_w <= N_tot
-    samples = images[:N_h*N_w].cpu().numpy()
+    tot= min(N_h*N_w, N_tot)
+    samples = images[:tot].cpu().numpy()
     fig = plt.figure(figsize=(N_h, N_w))
     gs = gridspec.GridSpec(N_h, N_w)
     gs.update(wspace=0.05, hspace=0.05)
