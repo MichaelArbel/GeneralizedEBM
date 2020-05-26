@@ -341,7 +341,7 @@ def init_logs(args, run_id):
     if args.save_nothing:
         return None, None, None
     log_name = args.log_name
-    log_dir = os.path.join(args.log_dir, log_name, args.mode)
+    log_dir = os.path.join(args.log_dir, args.mode, args.dataset, 'temp_'+str(args.temperature))
     os.makedirs(log_dir, exist_ok=True)
 
     samples_dir = os.path.join(log_dir,  f'samples_{run_id}_{args.slurm_id}')

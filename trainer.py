@@ -434,8 +434,10 @@ class Trainer(object):
             images = self.sample_images(posteriors,self.args.fid_b_size, as_list=True)
             fid_train, fid_test = self.compute_fid( images, loader_types = ['train','valid'])
             images = torch.cat(images, dim=0)
-            dic_arrays = {'images':images.cpu().numpy(), 'latents':posteriors.cpu().numpy()}
-            self.save_dictionary({'fid_train':fid_train, 'fid_test':fid_test}, dic_arrays=dic_arrays, index=iter_num)
+            saved_images = images[:64]
+            saved_posteriors = posteriors[:64]
+            dic_arrays = {'images':saved_images.cpu().numpy(), 'latents':saved_posteriors.cpu().numpy()}
+            self.save_dictionary({'fid_train':fid_train, 'fid_test':fid_test, 'temp':self.args.temperature}, dic_arrays=dic_arrays, index=iter_num)
             viz.make_and_save_grid_images(images, f'iter_{str(iter_num).zfill(3)}', self.samples_dir)
             end = time.time()
             print(F'FID at step {iter_num}: {fid_train},  avg time {end-start}')
