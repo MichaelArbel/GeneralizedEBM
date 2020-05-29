@@ -8,7 +8,7 @@ log_name : 'redwine'
 optimizer: Adam
 
 criterion : 'kale'
-data_name : 'redwine'
+#data_name : 'redwine'
 #log_name : 'redwine'
 problem : 'unconditional'
 penalty_lambda : 0.1

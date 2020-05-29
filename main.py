@@ -130,6 +130,7 @@ parser.add_argument('--freq_kale', default = 2000, type= int , help='[images, uc
 parser.add_argument('--disp_freq', default = 100, type= int , help='[images, uci]')
 parser.add_argument('--checkpoint_freq', default = 1000, type= int , help='[images, uci]')
 parser.add_argument('--data_path', default ='./data' ,type= str , help='[images, uci]')
+parser.add_argument('--num_blocks', default = 3, type= int, help='[images, uci]')
 
 
 args = parser.parse_args()
