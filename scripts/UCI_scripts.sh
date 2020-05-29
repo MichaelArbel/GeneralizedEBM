@@ -1,43 +1,37 @@
-# sbatch UCI_slurm.sh configs/redwine_cd.yaml redwine 
-# sbatch UCI_slurm.sh configs/redwine_cd.yaml whitewine 
-# sbatch UCI_slurm.sh configs/redwine_cd.yaml parkinsons 
+sbatch scripts/UCI_slurm.sh configs/uci/redwine_cd.yaml redwine maf maf
+sbatch scripts/UCI_slurm.sh configs/uci/redwine_cd.yaml whitewine maf maf
+sbatch scripts/UCI_slurm.sh configs/uci/redwine_cd.yaml parkinsons maf maf
 
 
-# sbatch UCI_slurm.sh configs/redwine_nll.yaml redwine 
-# sbatch UCI_slurm.sh configs/redwine_nll.yaml whitewine 
-# sbatch UCI_slurm.sh configs/redwine_nll.yaml parkinsons 
+sbatch scripts/UCI_slurm.sh configs/uci/redwine_nll.yaml redwine maf maf
+sbatch scripts/UCI_slurm.sh configs/uci/redwine_nll.yaml whitewine maf maf
+sbatch scripts/UCI_slurm.sh configs/uci/redwine_nll.yaml parkinsons maf maf
+
+sbatch scripts/UCI_slurm.sh configs/uci/redwine_kale.yaml redwine maf maf
+sbatch scripts/UCI_slurm.sh configs/uci/redwine_kale.yaml whitewine maf maf
+sbatch scripts/UCI_slurm.sh configs/uci/redwine_kale.yaml parkinsons maf maf
 
 
-sbatch UCI_slurm.sh configs/redwine_kale.yaml redwine 
-sbatch UCI_slurm.sh configs/redwine_kale.yaml whitewine 
-sbatch UCI_slurm.sh configs/redwine_kale.yaml parkinsons 
+sbatch scripts/UCI_slurm.sh configs/uci/redwine_donskin.yaml redwine maf maf 
+sbatch scripts/UCI_slurm.sh configs/uci/redwine_donskin.yaml whitewine maf maf
+sbatch scripts/UCI_slurm.sh configs/uci/redwine_donskin.yaml parkinsons maf maf
+
+# sbatch scripts/UCI_slurm.sh configs/uci/redwine_cd.yaml redwine nvp nvp
+# sbatch scripts/UCI_slurm.sh configs/uci/redwine_cd.yaml whitewine nvp nvp
+# sbatch scripts/UCI_slurm.sh configs/uci/redwine_cd.yaml parkinsons nvp nvp
 
 
-sbatch UCI_slurm.sh configs/redwine_donskin.yaml redwine 
-sbatch UCI_slurm.sh configs/redwine_donskin.yaml whitewine 
-sbatch UCI_slurm.sh configs/redwine_donskin.yaml parkinsons 
+# sbatch scripts/UCI_slurm.sh configs/uci/redwine_nll.yaml redwine nvp nvp
+# sbatch scripts/UCI_slurm.sh configs/uci/redwine_nll.yaml whitewine nvp nvp
+# sbatch scripts/UCI_slurm.sh configs/uci/redwine_nll.yaml parkinsons nvp nvp
 
+# sbatch scripts/UCI_slurm.sh configs/uci/redwine_kale.yaml redwine nvp nvp
+# sbatch scripts/UCI_slurm.sh configs/uci/redwine_kale.yaml whitewine nvp nvp
+# sbatch scripts/UCI_slurm.sh configs/uci/redwine_kale.yaml parkinsons nvp nvp
 
-
-# sbatch UCI_slurm.sh configs/redwine_kale.yaml parkinsons 
-# sbatch UCI_slurm.sh configs/redwine_donskin.yaml parkinsons 
-
-
-
-
-
-# sbatch UCI_slurm.sh configs/redwine_kale.yaml redwine 
-# sbatch UCI_slurm.sh configs/redwine_kale.yaml whitewine 
-# sbatch UCI_slurm.sh configs/redwine_kale.yaml parkinsons 
-
-
-# python run_energy.py --config=configs/redwine_nll.yaml --data_name=redwine --device=1 & 
-# python run_energy.py --config=configs/redwine_nll.yaml --data_name=parkinsons --device=0 &
-# python run_energy.py --config=configs/redwine_nll.yaml --data_name=whitewine --device=1 &
-
-
-
-
+# sbatch scripts/UCI_slurm.sh configs/uci/redwine_donskin.yaml redwine nvp nvp 
+# sbatch scripts/UCI_slurm.sh configs/uci/redwine_donskin.yaml whitewine nvp nvp
+# sbatch scripts/UCI_slurm.sh configs/uci/redwine_donskin.yaml parkinsons nvp nvp
 
 
 

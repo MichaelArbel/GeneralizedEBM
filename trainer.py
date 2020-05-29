@@ -28,7 +28,7 @@ import samplers
 #from  models.generator import BigGANwrapper
 from utils import timer
 
-
+import models
 
 from utils.fid_scheduler import FIDScheduler
 from utils import vizualization as viz
@@ -46,8 +46,8 @@ class Trainer(object):
         print(f"Process id: {str(os.getpid())} | hostname: {socket.gethostname()}")
         print(f"Run id: {self.run_id}")
         print(f"Time: {datetime.now()}")
-        pp = pprint.PrettyPrinter(indent=4)
-        pp.pprint(vars(args))
+        self.pp = pprint.PrettyPrinter(indent=4)
+        self.pp.pprint(vars(args))
         print('==> Building model..')
         self.timer = timer.Timer()
         self.mode = args.mode
@@ -229,8 +229,8 @@ class Trainer(object):
         if self.eval_fid or self.eval_kale:
             images = self.sample_images(self.eval_latents, self.args.sample_b_size, as_list=True)
             if self.eval_kale:
-                KALE_train, base_mean, log_partition = self.compute_kale(self.train_loader, images)
-                KALE_test, _ , _ = self.compute_kale(self.test_loader,  images, precomputed_stats = (base_mean,log_partition) )
+                KALE_train, _, base_mean, log_partition = self.compute_kale(self.train_loader, images)
+                KALE_test, _, _ , _ = self.compute_kale(self.test_loader,  images, precomputed_stats = (base_mean,log_partition) )
                 self.save_dictionary({'kale_train':KALE_train.item(), 'kale_test':KALE_test.item(), 'base_mean':base_mean.item(), 'log_partition':log_partition.item(), 'kale_iter':self.counter})
             if self.eval_fid:
             
@@ -313,9 +313,25 @@ class Trainer(object):
                 Z = self.noise_gen.sample([self.args.sample_b_size])
                 fake_data = self.generator(Z)
                 fake_data = -self.discriminator(fake_data)
-                cp.iterative_log_sum_exp(fake_data,log_partition,M)
+                log_partition,M = cp.iterative_log_sum_exp(fake_data,log_partition,M)
         log_partition = log_partition - np.log(M)
         return torch.tensor(log_partition.item()).to(self.device)
+
+    def init_log_partition(self):
+        log_partition = torch.tensor(0.).to(self.device)
+        M = 0
+        num_batches = 100
+        self.generator.eval()
+        self.discriminator.eval()
+
+        gen_loader = self.sample_images(self.eval_latents,self.args.noise_factor*self.args.b_size, as_list= True)
+        for data in gen_loader:
+            with torch.no_grad():
+                fake_data = -self.discriminator(data.to(self.device))
+                log_partition,M = cp.iterative_log_sum_exp(fake_data,log_partition,M)
+        log_partition = log_partition - np.log(M)
+        return torch.tensor(log_partition.item()).to(self.device)
+
 
     def compute_log_partition(self,fake_results, net_type):
         batch_log_partition = torch.logsumexp(-fake_results, dim=0)- np.log(fake_results.shape[0])
@@ -391,27 +407,34 @@ class Trainer(object):
                 for img in base_loader:
                     energy  = -self.discriminator(img.to(self.device))
                     if self.args.criterion == 'donsker':
-                        base_mean,M = cp.iterative_log_sum_exp(torch.exp(energy),base_mean,M)
+                        base_mean,M = cp.iterative_log_sum_exp(energy,base_mean,M)
                     else:
                         energy = -torch.exp(energy - self.log_partition ) 
                         base_mean, M = cp.iterative_mean(energy, base_mean,M)
             if self.args.criterion=='donsker':
                 log_partition = 1.*base_mean -np.log(M)
                 base_mean = torch.tensor(-1.).to(self.device)
+
             else:
                 log_partition = self.log_partition
-
         else:
-            base_mean, log_partition= precomputed_stats 
+            base_mean, log_partition = precomputed_stats 
 
         M = 0
-        for data, target in data_loader: 
+        for data, target in data_loader:
             with torch.no_grad():
+
                 data_energy = -(self.discriminator(data.to(self.device)) + log_partition)
             data_mean, M = cp.iterative_mean(data_energy, data_mean,M)
+        M=0
+        if self.args.criterion=='donsker':
+            data = base_loader[0]
+            energy  = -self.discriminator(data.to(self.device))
+            log_partition,M = cp.iterative_log_sum_exp(energy,torch.tensor(0.).to(self.device),M)
+            log_partition -= np.log(M) 
 
         KALE = data_mean + base_mean + 1
-        return KALE, base_mean, log_partition
+        return KALE, data_mean, base_mean, log_partition
 
     #### FOR Sampling
     def init_latents(self):
@@ -520,58 +543,97 @@ class Trainer(object):
 
 class TrainerEBM(Trainer):
     def __init__(self, args):
+        self.args = args
         self.train_loader, self.test_loader, self.valid_loader,self.input_dims = hp.get_data_loader(self.args)
-        args.Z_dim = self.input_dims
-        self.args= args
+        args.Z_dim = int(self.input_dims)
+        self.dataset_size=  int(self.train_loader.dataset.X.shape[0])
         super(TrainerEBM, self).__init__(args)
-        if self.args.combined_discriminator:
-            self.discriminator = model.energy_model.CombinedDiscriminator(self.discriminator, self.generator)
+        if self.args.combined_discriminator and self.args.criterion in ['kale','donsker']:
+            self.discriminator = models.energy_model.CombinedDiscriminator(self.discriminator, self.generator)
 
         if self.args.criterion=='cd':
-            sampler = get_latent_sampler(self.args,self.discriminator,self.device)
-            self.cd_sampler = samplers.ContrastiveDivergenceSampler(self.noise_gen, sampler)
-
+            sampler = hp.get_latent_sampler(self.args,self.discriminator,self.device)
+            self.cd_sampler = samplers.ContrastiveDivergenceSampler(self.noise_gen, sampler, self.device)
+    def log_dir_formatter(self,args):
+            return os.path.join(args.log_dir, args.mode, args.dataset, args.discriminator, args.criterion)
     def select_statistics(self):
-        statistics = ['nll_gen','kale']
+        statistics = ['nll_gen']
         has_log_density = getattr(self.discriminator, "log_density", None) is not None 
         has_log_partition =  getattr(self.discriminator, "log_partition", None) is not None 
         if has_log_density:
             statistics.append('nll_dis')
         if has_log_partition:
             statistics.append('gt_log_partition')
-
+        if self.args.criterion =='cd':
+            statistics.append('log_partition')
+        elif self.args.criterion in ['kale', 'donsker']:
+            statistics.append('kale')
         return statistics
 
     def eval(self):
-        statistics = self.select_statistics()
+        if np.mod(self.counter,10)==0:
+            statistics = self.select_statistics()
+            gen_loader = self.sample_images(self.eval_latents,self.args.noise_factor*self.args.b_size, as_list= True)
 
-        train_dic,base_mean, log_partition = self.compute_stats_dic(self.train_loader,gen_loader,statistics)
-        valid_dic,_,_ = self.compute_stats_dic(self.valid_loader,gen_loader,statistics, precomputed_stats = (base_mean, log_partition))
-        test_dic,_,_ = self.compute_stats_dic(self.test_loader,gen_loader,statistics, precomputed_stats = (base_mean, log_partition))
+            train_dic,base_mean, log_partition = self.compute_stats_dic(self.train_loader, gen_loader, 'train' ,statistics)
+            valid_dic,_,_ = self.compute_stats_dic(self.valid_loader,gen_loader,  'valid', statistics, precomputed_stats = (base_mean, log_partition))
+            test_dic,_,_ = self.compute_stats_dic(self.test_loader,gen_loader,'test', statistics, precomputed_stats = (base_mean, log_partition))
 
-        total_dic = {**train_dic,**valid_dic, **test_dic}
-        self.save_dictionary(total_dic)
-        print(total_dic)
+            total_dic = {**train_dic,**valid_dic, **test_dic}
+            out_dic = self.compute_final_stats(total_dic,statistics)
+            self.save_dictionary(out_dic)
+            print('Iteration:' +  str( int(self.counter)))
+            self.pp.pprint(out_dic)
+        #print(total_dic)
         # maybe keep track of best model on valid set
+    def compute_final_stats(self,stat_dic, statistics):
+        out = {}
+        splits = ['train', 'valid', 'test']
+        if self.args.combined_discriminator and self.args.criterion in  ['kale', 'donsker']:
+            for split in splits:
+                if 'nll_dis' in statistics and 'nll_gen' in statistics: 
+                    out[split + '_nll']=  stat_dic[split +'_nll_gen'] + stat_dic[split +'_nll_dis']
+                out[split+'_nkale'] = -stat_dic[split+'_kale'] + stat_dic[split +'_nll_gen']
+                out[split+'_nkale_dist'] = -stat_dic[split+'_data_mean']  + stat_dic[split +'_nll_gen']
+        elif  self.args.criterion in  ['cd', 'ml']:
+            for split in splits:
+                out[split+'_nll']= stat_dic[split+'_nll_dis']
+        if 'gt_log_partition' in statistics:
+            out['gt_log_partition'] = stat_dic['train_gt_log_partition']
+        if self.args.criterion in  ['kale', 'donsker','cd']:
+            out['log_partition'] = stat_dic['train_log_partition']
+        return out
 
     def compute_stats_dic(self,data_loader, gen_loader, loader_type, statistics = ['nll_gen','nll_dis','kale'],precomputed_stats=None ):
         stats_dic = {}
         if 'nll_gen' in statistics:
             nll_gen = cp.compute_nll(data_loader,self.generator, self.device)
-            stats_dic[loader_type+'nll_gen'] = nll_gen
+            stats_dic[loader_type+'_nll_gen'] = nll_gen.item()
         if 'nll_dis' in statistics:
             nll_gen = cp.compute_nll(data_loader,self.discriminator, self.device)
-            stats_dic[loader_type+'nll_dis'] = nll_gen
+            stats_dic[loader_type+'_nll_dis'] = nll_gen.item()
         if 'kale' in statistics:
 
-            KALE, base_mean, log_partition = self.compute_kale(data_loader,gen_loader,precomputed_stats=precomputed_stats)
-            stats_dic[loader_type+'kale'] = KALE.item()
-            stats_dic[loader_type+'base_mean'] = base_mean.item()
-            stats_dic[loader_type+'log_partition'] = log_partition.item()
+            KALE, data_mean, base_mean, log_partition = self.compute_kale(data_loader,gen_loader,precomputed_stats=precomputed_stats)
+            stats_dic[loader_type+'_kale'] = KALE.item()
+            stats_dic[loader_type+'_base_mean'] = base_mean.item()
+            stats_dic[loader_type+'_data_mean'] = data_mean.item()
+            stats_dic[loader_type+'_log_partition'] = log_partition.item()
             precomputed_stats = (base_mean, log_partition)
+        elif 'log_partition' in statistics and self.args.criterion=='cd':
+            stats_dic[loader_type+'_log_partition'] = self.cd_sampler.log_partition(self.args.noise_factor*self.args.b_size).item()
+
+
         if 'gt_log_partition' in statistics:
-            stats_dic[loader_type+'gt_log_partition'] = self.discriminator.log_partition()
-        return stats_dic, precomputed_stats
+            stats_dic[loader_type+'_gt_log_partition'] = self.discriminator.log_partition().item()
+        if precomputed_stats is None:
+
+
+            return stats_dic, None, None
+        else:
+            base_mean, log_partition = precomputed_stats
+            return stats_dic, base_mean, log_partition
+
     def iteration(self,data, net_type):
         if self.args.criterion in [ 'cd' ,'ml'] :
             return self.ebm_iteration(data, net_type)
@@ -581,19 +643,20 @@ class TrainerEBM(Trainer):
     def ebm_iteration(self,data,net_type='discriminator'):
         optimizer = self.prepare_optimizer(net_type)
         if self.args.criterion=='cd':
-            gen_data = self.cd_sampler.sample(data)
+            gen_data = self.cd_sampler.sample(data.shape[0]*self.args.noise_factor)
             true_data = self.discriminator(data)
             fake_data = self.discriminator(gen_data)
             loss = true_data.mean() - fake_data.mean()
+            total_loss = self.add_penalty(loss, net_type, data, gen_data)
         elif self.args.criterion=='ml':
             if net_type=='discriminator':
                 model = self.discriminator
             elif net_type =='generator':
                 model = self.generator
             loss = -model.log_density(data).mean()
-        total_loss = self.add_penalty(loss, net_type, data, gen_fdata_in)
+            total_loss = self.add_penalty(loss, net_type, data, data)
 
-        loss.backward()
+        total_loss.backward()
         optimizer.step()
         return loss 
 
@@ -608,13 +671,14 @@ class TrainerToy(Trainer):
     def __init__(self, args):
         self.train_loader, self.test_loader, self.valid_loader,self.input_dims = hp.get_data_loader(args)
         args.Z_dim = self.input_dims
+
         self.args = args
         super(TrainerToy, self).__init__(args)
     def log_dir_formatter(self,args):
             return os.path.join(args.log_dir, args.mode, args.dataset_type)  
 
     def eval(self):
-        if np.mod(self.counter,1000)==0: 
+        if np.mod(self.counter,self.train )==0: 
             out = self.compute_error_model()
             self.timer(self.counter, " energy error params: %.8f, base error params: %.8f" % (out['error_energy'],out['error_base'] ))
 

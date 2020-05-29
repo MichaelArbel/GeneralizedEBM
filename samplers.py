@@ -7,6 +7,7 @@ from torch.autograd.variable import Variable
 from torch import nn
 
 import torch.nn.functional as F
+import compute as cp
  
 class Latent_potential(nn.Module):
 
@@ -732,7 +733,7 @@ class IndependentMetropolisHastings(object):
 
 
 class ContrastiveDivergenceSampler(nn.Module):
-    def __init__(self,noise_gen, sampler):
+    def __init__(self,noise_gen, sampler, device):
         self.buffer = None
         self.max_buffer = 10000
         self.buffer_cursor = 0
@@ -740,16 +741,27 @@ class ContrastiveDivergenceSampler(nn.Module):
         self.sampler = sampler
         self.mask_int = None
         self.T = 10
+        self.device=device
     def sample_buffer(self,N):
         if self.buffer is None:
             self.buffer = self.noise_gen.sample([self.max_buffer]).to('cpu')
         self.mask_int =torch.multinomial(torch.ones(self.buffer.shape[0]),N, replacement=True).to(self.buffer.device)
         return self.buffer[self.mask_int,:].to(self.device)        
         
-    def sample(self,data):
-        prior_samples = self.sample_buffer(data.shape[0])
-        gen_data_in,_ = self.sampler.sample(prior_samples,sample_chain=False, T=self.T).detach()
-        self.buffer[self.mask_int,:] = gen_data_in.cpu()
+    def sample(self,N):
+        prior_samples = self.sample_buffer(N)
+        gen_data_in,_ = self.sampler.sample(prior_samples,sample_chain=False, T=self.T)
+        self.buffer[self.mask_int,:] = gen_data_in.detach().cpu()
         return gen_data_in
+
+    def log_partition(self,N):
+        gen_data_in = self.sample(N)
+        out = -0.5* torch.norm(gen_data_in, dim=1)**2 + self.sampler.potential(gen_data_in)
+        M = 0
+        log_partition = torch.tensor(0.).to(self.device)
+        log_partition, M=  cp.iterative_log_sum_exp(out,log_partition,M)
+        log_partition = -log_partition + np.log(M) + 0.5*gen_data_in.shape[1]*np.log(2.*np.pi)
+
+        return log_partition
 
 

@@ -58,5 +58,5 @@ n_iter_d_init : 500
 n_iter_d : 20
 temperature : 1.
 
-
+initialize_log_partition : True
 

@@ -109,8 +109,8 @@ def iterative_mean(batch_tensor, total_mean, total_els, dim=0 ):
 
 def iterative_log_sum_exp(batch_tensor,total_sum,total_els, dim=0):
     b = batch_tensor.shape[dim]
-    cur_sum = torch.logsumexp(batch_tensor, dim=0)
-    total_sum = torch.logsumexp(torch.stack( [total_sum,cur_sum] , dim=0), dim=0)
+    cur_sum = torch.logsumexp(batch_tensor, dim=0).sum()
+    total_sum = torch.logsumexp(torch.stack( [total_sum,cur_sum] , dim=0), dim=0).sum()
     total_els += b  
     return total_sum,  total_els
 
@@ -119,11 +119,12 @@ def compute_nll(data_loader, model, device):
     model.eval()
     log_density = 0.
     M = 0
-    for data, target in enumerate(data_loader): 
+    for i, (data,target) in enumerate(data_loader): 
         with torch.no_grad():
             cur_log_density = - model.log_density(data.to(device)) 
             log_density, M = iterative_mean(cur_log_density, log_density,M)
 
+    return log_density.mean()
 
 
 
