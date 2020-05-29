@@ -41,7 +41,7 @@ class Trainer(object):
         self.device = hp.assign_device(args.device)
         self.run_id = str(round(time.time() % 1e7))
         print(f"Run id: {self.run_id}")
-        self.log_dir, self.checkpoint_dir, self.samples_dir = hp.init_logs(args, self.run_id)
+        self.log_dir, self.checkpoint_dir, self.samples_dir = hp.init_logs(args, self.run_id, self.log_dir_formatter(args) )
         
         print(f"Process id: {str(os.getpid())} | hostname: {socket.gethostname()}")
         print(f"Run id: {self.run_id}")
@@ -56,6 +56,8 @@ class Trainer(object):
         
 
     # model building functions
+    def log_dir_formatter(self,args):
+            return os.path.join(args.log_dir, args.mode, args.dataset, 'temp_'+str(args.temperature))
 
 
     def build_model(self):
@@ -207,7 +209,7 @@ class Trainer(object):
                     accum_loss_d = []
 
             if counter % self.args.checkpoint_freq == 0 and is_valid_step:
-                if self.args.train_mode in ['both', 'base']:
+                if self.args.train_mode in ['both', 'base'] and self.args.dataset_type=='images':
                     images = self.sample_images(self.fixed_latents, self.args.sample_b_size)
                     viz.make_and_save_grid_images(images, f'Iter_{str(self.g_counter).zfill(3)}', self.samples_dir)
                 self.save_checkpoint(self.g_counter)
@@ -519,8 +521,9 @@ class Trainer(object):
 class TrainerEBM(Trainer):
     def __init__(self, args):
         self.train_loader, self.test_loader, self.valid_loader,self.input_dims = hp.get_data_loader(self.args)
-        self.args.Z_dim = self.input_dims
-        super(TrainerEBM, self).__init__()
+        args.Z_dim = self.input_dims
+        self.args= args
+        super(TrainerEBM, self).__init__(args)
         if self.args.combined_discriminator:
             self.discriminator = model.energy_model.CombinedDiscriminator(self.discriminator, self.generator)
 
@@ -600,5 +603,40 @@ class TrainerEBM(Trainer):
             self.args.seed = seed
             self.build_model()
             self.train()
+
+class TrainerToy(Trainer):
+    def __init__(self, args):
+        self.train_loader, self.test_loader, self.valid_loader,self.input_dims = hp.get_data_loader(args)
+        args.Z_dim = self.input_dims
+        self.args = args
+        super(TrainerToy, self).__init__(args)
+    def log_dir_formatter(self,args):
+            return os.path.join(args.log_dir, args.mode, args.dataset_type)  
+
+    def eval(self):
+        if np.mod(self.counter,1000)==0: 
+            out = self.compute_error_model()
+            self.timer(self.counter, " energy error params: %.8f, base error params: %.8f" % (out['error_energy'],out['error_base'] ))
+
+    def compute_error_model(self):
+        params_energy = list(self.discriminator.parameters())
+        true_params_energy = list(self.train_loader.dataset.energy.parameters())
+
+        params_base = list(self.generator.parameters())
+        true_params_base = list(self.train_loader.dataset.base.parameters())
+        error_bases = np.array([ torch.norm(p-tp) for p,tp in zip(params_base, true_params_base)    ] ).sum()
+        error_energy = np.array([ torch.norm(p-tp) for p,tp in zip(params_energy, true_params_energy)    ] ).sum()
+
+        out ={'energy': params_energy,
+               'base' : params_base,
+               'true_energy': true_params_energy,
+               'true_base': true_params_base,
+               'error_energy': error_energy,
+               'error_base':error_bases}
+        #if not f_exists and not self.args.save_nothing:
+        fname = os.path.join(self.samples_dir, f'saved_model_{self.counter}.pkl')
+        with open(fname, 'wb') as f:
+            pkl.dump(out, f)
+        return out
 
 

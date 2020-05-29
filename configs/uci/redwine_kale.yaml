@@ -4,8 +4,8 @@ dataset: cifar10
 
 total_epochs: 2000
 
-log_dir : '/nfs/gatsbystor/michaela/projects/kale/exp/rebuttal'
-log_name : 'UCI_mog_3'
+log_dir : '/nfs/gatsbystor/michaela/projects/kale/exp/neurips'
+log_name : 'UCI'
 optimizer: Adam
 
 criterion : 'kale'
