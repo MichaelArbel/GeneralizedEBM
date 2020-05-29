@@ -5,7 +5,7 @@ import argparse
 import yaml
 import torch
 
-from trainer import Trainer, TrainerEBM
+from trainer import Trainer, TrainerEBM, TrainerToy
 
 torch.backends.cudnn.deterministic = True
 torch.backends.cudnn.benchmark = False
@@ -138,6 +138,8 @@ if args.trainer_type=='default':
 	trainer = Trainer(args)
 elif args.trainer_type=='ebm':
 	trainer = TrainerEBM(args)
+elif args.trainer_type=='toy':
+	trainer = TrainerToy(args)
 # check whether we want to load a pretrained model depending on the given parameters
 
 

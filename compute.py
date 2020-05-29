@@ -70,7 +70,9 @@ def _gradient_penalty(d, true_data, fake_data, device):
     batch_size = true_data.size()[0]
     size_inter = min(batch_size,fake_data.size()[0])
     # Calculate interpolation
-    alpha = torch.rand(size_inter,1,1,1)
+    shape  = list(np.ones(len(true_data.shape)-1))
+    shape = tuple([int(a) for a in shape])
+    alpha = torch.rand((size_inter,)+shape)
     alpha = alpha.expand_as(true_data)
     alpha = alpha.to(device)
     

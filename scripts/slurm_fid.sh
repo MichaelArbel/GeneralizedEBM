@@ -7,7 +7,7 @@
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=70G
 #SBATCH --partition=gpu
-#SBATCH --gres=gpu:1
+#SBATCH --gres=gpu:rtx2080:1
 
 ##echo "Loading CUDA 9.0"
 ##module add nvidia/9.0

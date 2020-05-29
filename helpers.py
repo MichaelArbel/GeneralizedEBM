@@ -30,6 +30,7 @@ from PIL import Image, ImageFilter
 from utils.dataloader import load_data, PrepareUCIData
 import samplers
 import sys
+import models.toy_models as tm
 #from pytorch_pretrained_biggan import truncated_noise_sample
 
 
@@ -93,6 +94,7 @@ def get_image_loader(args):
             transform = transform_lsun)
         trainloader = torch.utils.data.DataLoader(trainset, batch_size=args.b_size, shuffle=True, num_workers=args.num_workers)
         testloader = torch.utils.data.DataLoader(testset, batch_size=args.b_size, shuffle=True, num_workers=args.num_workers)
+
 
     # elif args.dataset in ['imagenet128', 'imagenet32']:
     #     if args.dataset=='imagenet128':
@@ -182,6 +184,16 @@ def get_UCI_data_loader(args):
 
     return trainloader,testloader,validloader
 
+def get_toy_loader(args,device):
+    import models.toy_models as tm
+    N_samples = 5000
+    dtype=  'float32'
+    dataset = tm.BaseDataset(N_samples,dtype, args.device, args.b_size, args.data_path)
+
+    params = {'batch_size': args.b_size,
+          'shuffle': True,
+          'num_workers': 0}
+    return torch.utils.data.DataLoader(dataset, **params)
 
 def get_data_loader(args):
     if args.dataset_type=='images':
@@ -190,6 +202,11 @@ def get_data_loader(args):
     elif args.dataset_type=='UCI':
         trainloader,testloader,validloader = get_UCI_data_loader(args)
         input_dims = np.array([train_loader.dataset.X.shape[1]])
+    elif args.dataset_type=='toy':
+        trainloader = get_toy_loader(args, 'cuda')
+        input_dims = 3
+        validloader = trainloader
+        testloader = trainloader
     return trainloader,testloader,validloader, input_dims
 
 
@@ -320,7 +337,8 @@ def get_energy(args,input_dims,device):
         return energy_model.MAFGenerator([input_dims], device,args.num_blocks,mode='discriminator',with_bn=args.dis_bn).to(device)
     elif args.discriminator=='mogmaf':
         return energy_model.MOGMAFGenerator([input_dims], device,args.num_blocks,mode='discriminator',with_bn=args.dis_bn).to(device)
-
+    elif args.discriminator=='toy':
+        return tm.Discriminator(3)
 # return the base for the energy model
 def get_base(args,input_dims,device):
     if args.generator == 'convolutional':
@@ -335,13 +353,13 @@ def get_base(args,input_dims,device):
         net = energy_model.MAFGenerator(input_dims, device,args.num_blocks,mode='generator', with_bn=args.gen_bn).to(device)
     elif args.generator == 'mogmaf':
         net = energy_model.MOGMAFGenerator(input_dims, device,args.num_blocks,mode='generator', with_bn=args.gen_bn).to(device)
+    elif args.generator == 'toy':
+        net = tm.Generator(3)
     return net
 
-def init_logs(args, run_id):
+def init_logs(args, run_id, log_dir):
     if args.save_nothing:
         return None, None, None
-    log_name = args.log_name
-    log_dir = os.path.join(args.log_dir, args.mode, args.dataset, 'temp_'+str(args.temperature))
     os.makedirs(log_dir, exist_ok=True)
 
     samples_dir = os.path.join(log_dir,  f'samples_{run_id}_{args.slurm_id}')
