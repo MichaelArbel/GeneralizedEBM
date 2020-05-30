@@ -765,3 +765,38 @@ class ContrastiveDivergenceSampler(nn.Module):
         return log_partition
 
 
+class ContrastiveDivergenceSampler(nn.Module):
+    def __init__(self,noise_gen, sampler, device):
+        self.buffer = None
+        self.max_buffer = 10000
+        self.buffer_cursor = 0
+        self.noise_gen = noise_gen
+        self.sampler = sampler
+        self.mask_int = None
+        self.T = 60
+        self.device=device
+    def sample_buffer(self,data, N=128):
+        if self.buffer is None:
+            self.buffer = self.noise_gen.sample([self.max_buffer]).to('cpu')
+        if data is None:
+            self.mask_int =torch.multinomial(torch.ones(self.buffer.shape[0]),N, replacement=True).to(self.buffer.device)
+            return self.buffer[self.mask_int,:].to(self.device)        
+        else:
+            self.mask_int =torch.multinomial(torch.ones(self.buffer.shape[0]),data.shape[0], replacement=True).to(self.buffer.device)
+            return data
+
+    def sample(self,data, N=128 ):
+        prior_samples = self.sample_buffer(data, N)
+        gen_data_in,_ = self.sampler.sample(prior_samples,sample_chain=False, T=self.T)
+        self.buffer[self.mask_int,:] = gen_data_in.detach().cpu()
+        return gen_data_in
+
+    def log_partition(self,N):
+        gen_data_in = self.sample(None,N)
+        out = -0.5* torch.norm(gen_data_in, dim=1)**2 + self.sampler.potential(gen_data_in)
+        M = 0
+        log_partition = torch.tensor(0.).to(self.device)
+        log_partition, M=  cp.iterative_log_sum_exp(out,log_partition,M)
+        log_partition = -log_partition + np.log(M) + 0.5*gen_data_in.shape[1]*np.log(2.*np.pi)
+
+        return log_partition

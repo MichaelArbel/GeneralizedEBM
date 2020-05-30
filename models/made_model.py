@@ -587,6 +587,45 @@ class MAFMOG(nn.Module):
         log_probs = torch.logsumexp(self.mademog.logr + self.base_dist.log_prob(u) + log_abs_det_jacobian, dim=1)  # out (N, L)
         return log_probs.sum(1)  # out (N,)
 
+class MAF(nn.Module):
+    """ MAF on mixture of gaussian MADE """
+    def __init__(self, n_blocks, input_size, hidden_size, n_hidden, cond_label_size=None, activation='relu',
+                 input_order='sequential', batch_norm=True):
+        super().__init__()
+        # base distribution for calculation of log prob under the model
+        self.register_buffer('base_dist_mean', torch.zeros(input_size))
+        self.register_buffer('base_dist_var', torch.ones(input_size))
+
+        modules = []
+        for i in ragne(n_blocks):
+            modules +=[ MADE(input_size, hidden_size, activation=activations ) , BatchNormFlow(input_size), Reverse(input_size) ]
+        self.maf = FlowSequential(**modules)
+
+        # get reversed input order from the last layer (note in maf model, input_degrees are already flipped in for-loop model constructor
+        #input_degrees = self.maf.input_degrees#.flip(0)
+        #self.mademog = MADEMOG(n_components, input_size, hidden_size, n_hidden, cond_label_size, activation, input_order, input_degrees)
+
+    @property
+    def base_dist(self):
+        return D.Normal(self.base_dist_mean, self.base_dist_var)
+
+    def forward(self, x, y=None):
+        u, maf_log_abs_dets = self.maf(x, y)
+
+        return u, maf_log_abs_dets
+
+    def inverse(self, u, y=None):
+        x, maf_log_abs_dets = self.maf.inverse(u, y)
+        return x, maf_log_abs_dets
+
+    def log_prob(self, x, y=None):
+        u, log_abs_det_jacobian = self.forward(x, y)  # u = (N,C,L); log_abs_det_jacobian = (N,C,L)
+        # marginalize cluster probs
+        log_probs = self.base_dist.log_prob(u) + log_abs_det_jacobian  # out (N, L)
+        return log_probs.sum(1)  # out (N,)
+
+
+
 
 class FlowSequential(nn.Sequential):
     """ A sequential container for flows.

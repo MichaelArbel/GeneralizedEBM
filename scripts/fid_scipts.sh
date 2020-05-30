@@ -51,15 +51,15 @@
 # done 
 
 
-array=( 0.1 1. ) 
+array=( 1000. ) 
 
 for temperature in ${array[@]}
 do
 	echo " temperature $temperature "
-	#sbatch scripts/slurm_fid.sh configs/sample/sngan_imagenet_michael.yaml mala $temperature
-	#sbatch scripts/slurm_fid.sh configs/sample/sngan_cifar10_michael.yaml mala $temperature
+	sbatch scripts/slurm_fid.sh configs/sample/sngan_imagenet_michael.yaml mala $temperature
+	sbatch scripts/slurm_fid.sh configs/sample/sngan_cifar10_michael.yaml mala $temperature
 	sbatch scripts/slurm_fid.sh configs/sample/sngan_lsun_michael.yaml mala $temperature
-	#sbatch scripts/slurm_fid.sh configs/sample/sngan_celebA_michael.yaml mala $temperature
+	sbatch scripts/slurm_fid.sh configs/sample/sngan_celebA_michael.yaml mala $temperature
 
 done 
 

@@ -13,7 +13,7 @@ from torch.nn.utils import spectral_norm as sn_official
 spectral_norm = sn_official
 
 
-from models.mog_maf_model import MAFMOG, MAF
+from models.mog_maf_model import MAFMOG, MAF, MADE
 
 import models.mog_maf_model as mms
 
@@ -58,19 +58,28 @@ class Identity(nn.Module):
 
 
 class MADEGenerator(nn.Module):
-    def __init__(self, dims):
+    def __init__(self, dims, mode= 'discriminator'):
         super(MADEGenerator, self).__init__()
         self.num_inputs = dims[0]
-        self.num_hidden = 1000
-
+        self.num_hidden = 100
+        self.mode = mode
         self.made = made.MADE(self.num_inputs,self.num_hidden,act='lrelu')
-
+        self.params = list(self.made.parameters())
     def forward(self,z):
-        u,a= self.made(z,mode='inverse')
-        return u
+        if self.mode=='generator':
+            u,a= self.made(z,mode='inverse')
+            return u
+        elif self.mode=='discriminator':
+            return -self.log_density(z) -self.log_partition() 
     def log_density(self,x):
         u,a = self.made(x)
         return a +(-0.5*u.pow(2)- 0.5 * np.log(2 * np.pi)).sum(-1,keepdim=True)
+
+    def log_partition(self):
+        abs_value = [torch.mean(torch.abs(p)) for p in self.params]
+        abs_value = torch.stack(abs_value,dim=0).sum()
+        return -abs_value
+
 
 class NVP(nn.Module):
     def __init__(self,dims, device,num_blocks, mode = 'generator', with_bn=True):
@@ -121,46 +130,9 @@ class NVP(nn.Module):
         abs_value = torch.stack(abs_value,dim=0).sum()
         return -abs_value
 
-
-class MAFGenerator(nn.Module):
-    def __init__(self,dims, device,num_blocks, mode = 'generator', with_bn=True):
-        super(MAFGenerator, self).__init__()
-        num_inputs = dims[0]
-        hidden_size = 100
-        mask = torch.arange(0, num_inputs) % 2
-        mask = mask.to(device).float()
-        num_cond_inputs = None
-        modules = []
-        num_blocks = 5
-        n_components = 10
-        n_hidden = 1
-        self.model = MAF(num_blocks,num_inputs,hidden_size,n_hidden,batch_norm=with_bn)
-        self.max = 10
-        self.non_linearity = Identity(self.max)
-        self.mode = mode
-        self.params = list(self.model.parameters())
-    def forward(self,z):
-        if self.mode=='generator':
-            z = self.non_linearity.inverse(z)
-            u,a= self.model.inverse(z)
-            return u
-        elif self.mode=='discriminator':
-
-            return -self.log_density(z) -self.log_partition() 
-    def log_density(self,x):
-        return self.model.log_prob(x)
-
-
-    def log_partition(self):
-        abs_value = [torch.mean(torch.abs(p)) for p in self.params]
-        abs_value = torch.stack(abs_value,dim=0).sum()
-        return -abs_value
-
-
-
-class MOGMAFGenerator(nn.Module):
-    def __init__(self,dims, device,num_blocks, mode = 'generator', with_bn=True):
-        super(MOGMAFGenerator, self).__init__()
+class FlowGenerator(nn.Module):
+    def __init__(self,dims, device,num_blocks,flow_type, mode = 'generator', with_bn=True):
+        super(FlowGenerator, self).__init__()
         num_inputs = dims[0]
         hidden_size = 100
         mask = torch.arange(0, num_inputs) % 2
@@ -170,7 +142,12 @@ class MOGMAFGenerator(nn.Module):
         num_blocks = 5
         self.n_components = 10
         n_hidden = 1
-        self.model = MAFMOG(num_blocks,self.n_components,num_inputs,hidden_size,n_hidden,batch_norm=with_bn)
+        if flow_type=='mafmog':
+            self.model = made.MAFMOG(num_blocks,self.n_components, num_inputs,hidden_size,n_hidden,batch_norm=with_bn)
+        elif flow_type=='maf':
+            self.model = made.MAF(num_blocks, num_inputs,hidden_size,n_hidden,batch_norm=with_bn)
+        elif flow_type=='made':
+            self.model = made.MADE(num_inputs,hidden_size, act= 'lrelu')
         self.max = 10
         self.non_linearity = Identity(self.max)
         self.mode = mode
