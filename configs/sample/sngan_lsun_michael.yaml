@@ -46,7 +46,7 @@ sample_b_size : 2000
 
 
 
-lmc_gamma : .0001
+lmc_gamma : .00001
 lmc_kappa : .04
 #latent_sampler : 'langevin'
 num_lmc_steps : 1000

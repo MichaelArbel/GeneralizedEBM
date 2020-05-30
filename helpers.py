@@ -333,10 +333,12 @@ def get_energy(args,input_dims,device):
         return Discriminator(nn_type=args.d_model, bn=args.bn,skipinit=args.skipinit).to(device)
     elif args.discriminator=='nvp':
         return energy_model.NVP([input_dims], device,args.num_blocks,mode='discriminator',with_bn=args.dis_bn).to(device)
+    elif args.discriminator=='made':
+        return energy_model.MADEGenerator([input_dims],  mode='discriminator').to(device)
     elif args.discriminator=='maf':
-        return energy_model.MAFGenerator([input_dims], device,args.num_blocks,mode='discriminator',with_bn=args.dis_bn).to(device)
+        return energy_model.FlowGenerator([input_dims], device,args.num_blocks,'maf' , mode='discriminator',with_bn=args.dis_bn).to(device)
     elif args.discriminator=='mogmaf':
-        return energy_model.MOGMAFGenerator([input_dims], device,args.num_blocks,mode='discriminator',with_bn=args.dis_bn).to(device)
+        return energy_model.FlowGenerator([input_dims], device,args.num_blocks,'mogmaf', mode='discriminator',with_bn=args.dis_bn).to(device)
     elif args.discriminator=='toy':
         return tm.Discriminator(3)
     elif args.discriminator=='are':
@@ -350,13 +352,13 @@ def get_base(args,input_dims,device):
     elif args.generator =='gaussian':
         net = energy_model.GaussianGenerator([input_dims]).to(device)
     elif args.generator == 'made':
-        net = energy_model.MADEGenerator([input_dims]).to(device)
+        net = energy_model.MADEGenerator([input_dims], mode='generator').to(device)
     elif args.generator == 'nvp':
         net = energy_model.NVP([input_dims], device,args.num_blocks,mode='generator', with_bn=args.gen_bn).to(device)
     elif args.generator == 'maf':
-        net = energy_model.MAFGenerator([input_dims], device,args.num_blocks,mode='generator', with_bn=args.gen_bn).to(device)
+        net = energy_model.FlowGenerator([input_dims], device,args.num_blocks, 'maf' ,  mode='generator', with_bn=args.gen_bn).to(device)
     elif args.generator == 'mogmaf':
-        net = energy_model.MOGMAFGenerator([input_dims], device,args.num_blocks,mode='generator', with_bn=args.gen_bn).to(device)
+        net = energy_model.FlowGenerator([input_dims], device,args.num_blocks, 'mogmaf',  mode='generator', with_bn=args.gen_bn).to(device)
     elif args.generator == 'toy':
         net = tm.Generator(3)
     return net

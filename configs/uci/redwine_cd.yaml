@@ -4,16 +4,17 @@ b_size: 100
 
 dataset_type : UCI
 trainer_type : ebm
-total_epochs: 2000
+total_epochs: 5000
 
 log_dir : '/nfs/gatsbystor/michaela/projects/kale/exp/neurips'
 log_name : 'UCI'
 optimizer: Adam
 
-penalty_lambda : 0.1
-penalty_type: 'gradient'
+penalty_lambda : 0.0001
+penalty_type: 'l2'
 scheduler : 'MultiStepLR'
-
+use_scheduler : True
+milestone : '50,500,750'
 
 
 Z_factor : 20
@@ -46,5 +47,3 @@ log_to_file : True
 noise_factor : 20
 
 initialize_log_partition : True
-
-total_gen_iter : 1000

@@ -546,7 +546,9 @@ class TrainerEBM(Trainer):
         self.args = args
         self.train_loader, self.test_loader, self.valid_loader,self.input_dims = hp.get_data_loader(self.args)
         args.Z_dim = int(self.input_dims)
-        self.dataset_size=  int(self.train_loader.dataset.X.shape[0])
+        self.dataset_size =  int(self.train_loader.dataset.X.shape[0])
+        self.epoch_counter = 0
+        self.previous_epoch = -1
         super(TrainerEBM, self).__init__(args)
         if self.args.combined_discriminator and self.args.criterion in ['kale','donsker']:
             self.discriminator = models.energy_model.CombinedDiscriminator(self.discriminator, self.generator)
@@ -570,8 +572,19 @@ class TrainerEBM(Trainer):
             statistics.append('kale')
         return statistics
 
-    def eval(self):
-        if np.mod(self.counter,10)==0:
+    def train(self):
+        done =False
+        if self.args.initialize_log_partition:
+            self.log_partition.data = self.init_log_partition()  
+        for epoch in range(self.args.total_epochs):
+            print('Epoch' + str(self.epoch_counter))
+            self.epoch_counter=epoch
+            self.train_epoch()
+
+
+    def eval(self):            
+
+        if np.mod(self.epoch_counter,10)==0 and self.epoch_counter> self.previous_epoch:
             statistics = self.select_statistics()
             gen_loader = self.sample_images(self.eval_latents,self.args.noise_factor*self.args.b_size, as_list= True)
 
@@ -584,6 +597,8 @@ class TrainerEBM(Trainer):
             self.save_dictionary(out_dic)
             print('Iteration:' +  str( int(self.counter)))
             self.pp.pprint(out_dic)
+            self.previous_epoch = self.epoch_counter
+            
         #print(total_dic)
         # maybe keep track of best model on valid set
     def compute_final_stats(self,stat_dic, statistics):
@@ -602,6 +617,8 @@ class TrainerEBM(Trainer):
             out['gt_log_partition'] = stat_dic['train_gt_log_partition']
         if self.args.criterion in  ['kale', 'donsker','cd']:
             out['log_partition'] = stat_dic['train_log_partition']
+        out['iter'] = self.counter 
+        out['epoch']= self.epoch_counter  
         return out
 
     def compute_stats_dic(self,data_loader, gen_loader, loader_type, statistics = ['nll_gen','nll_dis','kale'],precomputed_stats=None ):
@@ -643,7 +660,7 @@ class TrainerEBM(Trainer):
     def ebm_iteration(self,data,net_type='discriminator'):
         optimizer = self.prepare_optimizer(net_type)
         if self.args.criterion=='cd':
-            gen_data = self.cd_sampler.sample(data.shape[0]*self.args.noise_factor)
+            gen_data = self.cd_sampler.sample(data)
             true_data = self.discriminator(data)
             fake_data = self.discriminator(gen_data)
             loss = true_data.mean() - fake_data.mean()

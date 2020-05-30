@@ -208,6 +208,9 @@ class MADE(nn.Module):
             activation_fn = nn.ReLU()
         elif activation == 'tanh':
             activation_fn = nn.Tanh()
+        elif activation =='lrelu':
+            leak = 0.1
+            activation_fn = nn.LeakyReLU(leak)
         else:
             raise ValueError('Check activation function.')
 

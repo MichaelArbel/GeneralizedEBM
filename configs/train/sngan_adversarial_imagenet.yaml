@@ -58,6 +58,7 @@ lr_partition : 0.99
 
 manual_update : False
 
+lmc_gamma : 0.001
 
 lr : 0.01
 lr_generator : 0.0001

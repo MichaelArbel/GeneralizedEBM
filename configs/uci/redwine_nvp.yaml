@@ -1,60 +1,50 @@
-b_size: 1024
-dataset: cifar10
 
-total_epochs: 1000
+b_size: 100
+#dataset: redwine
 
-log_dir : '/nfs/gatsbystor/michaela/projects/kale/exp/rebuttal'
-log_name : 'redwine'
+dataset_type : UCI
+trainer_type : ebm
+total_epochs: 2000
+
+log_dir : '/nfs/gatsbystor/michaela/projects/kale/exp/neurips'
+log_name : 'UCI'
 optimizer: Adam
 
-criterion : 'kale'
-#data_name : 'redwine'
-#log_name : 'redwine'
-problem : 'unconditional'
 penalty_lambda : 0.1
-penalty_type: 'gradient_l2'
+penalty_type: 'l2'
 scheduler : 'MultiStepLR'
+
+
+
 Z_factor : 20
-generator : 'made'
-log_to_file : False
+
 penalty_g_lambda : 0.0001
 lr : 0.0001
 lr_generator : 0.0001
-generator : 'nvp'
-discriminator : 'nvp'
+#generator : 'mogmaf'
+#discriminator : 'mogmaf'
+
+
+#generator : 'made'
+#discriminator : 'made'
 
 dis_bn : False
 gen_bn : False
+
 n_iter_d : 10
-combined_discriminator : False
 
-adversarial : True
-
-likelihood_mode : False
-
-#g_path : '/nfs/gatsbystor/michaela/projects/kale/exp/uci_rebuttal/redwine/checkpoints/gen_999'
-
-
-true_NLL : True
-generator : 'nvp'
-discriminator : 'nvp'
-
-dis_bn : False
-gen_bn : False
-n_iter_d : 1
 combined_discriminator : True
 
+train_mode : 'both'
+#criterion : 'kale'
 
 
-optimal_log_partition : False
+fid_mode : False
 
-adversarial : True
+log_to_file : False
 
-likelihood_mode : False
+noise_factor : 20
 
-#log_partition : -12.
+initialize_log_partition : True
 
-lr_partition : .8
-
-#g_path : '/nfs/gatsbystor/michaela/projects/kale/exp/rebuttal/redwine/train/checkpoints/gen_304'
-
+total_gen_iter : 1000
