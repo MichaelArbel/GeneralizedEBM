@@ -248,6 +248,7 @@ def compute_stats_from_loader(model,data_loader,device,batch_size=128):
     #images = images/255
     
     pred_arr = get_activations_from_loader(data_loader,model,device,batch_size)
+    pred_arr = pred_arr.cpu().detach().numpy()
     mu = np.mean(pred_arr, axis=0)
     sigma = np.cov(pred_arr, rowvar=False)
     return mu, sigma

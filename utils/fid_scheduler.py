@@ -12,7 +12,6 @@ class FIDScheduler(object):
         self.trainer = None
         self.num_failures = 0
         self.max_failures = 3 #args.max_failures
-        self.n_iter_d = args.n_iter_d
     def init_trainer(self, trainer):
         self.trainer = trainer
 

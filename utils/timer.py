@@ -1,12 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-Created on Fri Jan 19 13:42:24 2018
-
-@author: mikolajbinkowski
-"""
-
-
 import time
    
 class Timer(object):

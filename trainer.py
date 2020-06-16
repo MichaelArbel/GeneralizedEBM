@@ -19,13 +19,9 @@ import pdb
 
 import timeit
 
-# Don't forget to select GPU runtime environment in Runtime -> Change runtime type
-
 import helpers as hp
 import compute as cp
 import samplers
-#from pytorch_pretrained_biggan import BigGAN
-#from  models.generator import BigGANwrapper
 from utils import timer
 
 import models
@@ -57,11 +53,11 @@ class Trainer(object):
 
     # model building functions
     def log_dir_formatter(self,args):
-            return os.path.join(args.log_dir, args.mode, args.dataset, 'temp_'+str(args.temperature))
+            return os.path.join(args.log_dir, args.mode, args.dataset)
 
 
     def build_model(self):
-        self.train_loader, self.test_loader, self.valid_loader,self.input_dims = hp.get_data_loader(self.args)
+        self.train_loader, self.test_loader, self.valid_loader,self.input_dims = hp.get_data_loader(self.args,self.args.b_size, self.args.num_workers)
         
         self.generator = hp.get_base(self.args, self.input_dims, self.device)
         self.discriminator = hp.get_energy(self.args,self.input_dims, self.device)
@@ -69,6 +65,8 @@ class Trainer(object):
         self.fixed_latents = self.noise_gen.sample([64])
         self.eval_latents =torch.cat([ self.noise_gen.sample([self.args.sample_b_size]).cpu() for b in range(int(self.args.fid_samples/self.args.sample_b_size)+1)], dim=0)
         self.eval_latents = self.eval_latents[:self.args.fid_samples]
+        self.eval_velocity =  torch.cat([ torch.zeros([self.args.sample_b_size, self.eval_latents.shape[1]]).cpu() for b in range(int(self.args.fid_samples/self.args.sample_b_size)+1)], dim=0)
+        self.eval_velocity = self.eval_velocity[:self.args.fid_samples]
         # load models if path exists, define log partition if using kale and add to discriminator
         self.d_params = list(filter(lambda p: p.requires_grad, self.discriminator.parameters()))
         if self.args.g_path is not None:
@@ -106,7 +104,7 @@ class Trainer(object):
         else:
             self.latent_potential = samplers.Latent_potential(self.generator,self.discriminator,self.noise_gen, self.args.temperature) 
         
-        self.latent_sampler = hp.get_latent_sampler(self.args, self.latent_potential, self.device)
+        self.latent_sampler = hp.get_latent_sampler(self.args, self.latent_potential,self.args.Z_dim, self.device)
         if self.args.eval_fid:
             self.eval_fid = True
             print('==> Loading inception network...')
@@ -134,7 +132,7 @@ class Trainer(object):
 
     def load_generator(self):
         g_model = torch.load(self.args.g_path, map_location=self.device)
-        self.noise_gen = hp.get_normal(self.args, self.device)
+        self.noise_gen = hp.get_normal(self.args.Z_dim, self.device)
         self.generator.load_state_dict(g_model)
         self.generator = self.generator.to(self.device)
 
@@ -229,8 +227,8 @@ class Trainer(object):
         if self.eval_fid or self.eval_kale:
             images = self.sample_images(self.eval_latents, self.args.sample_b_size, as_list=True)
             if self.eval_kale:
-                KALE_train, _, base_mean, log_partition = self.compute_kale(self.train_loader, images)
-                KALE_test, _, _ , _ = self.compute_kale(self.test_loader,  images, precomputed_stats = (base_mean,log_partition) )
+                KALE_train, base_mean, log_partition = self.compute_kale(self.train_loader, images)
+                KALE_test, _ , _ = self.compute_kale(self.test_loader,  images, precomputed_stats = (base_mean,log_partition) )
                 self.save_dictionary({'kale_train':KALE_train.item(), 'kale_test':KALE_test.item(), 'base_mean':base_mean.item(), 'log_partition':log_partition.item(), 'kale_iter':self.counter})
             if self.eval_fid:
             
@@ -313,25 +311,9 @@ class Trainer(object):
                 Z = self.noise_gen.sample([self.args.sample_b_size])
                 fake_data = self.generator(Z)
                 fake_data = -self.discriminator(fake_data)
-                log_partition,M = cp.iterative_log_sum_exp(fake_data,log_partition,M)
+                cp.iterative_log_sum_exp(fake_data,log_partition,M)
         log_partition = log_partition - np.log(M)
         return torch.tensor(log_partition.item()).to(self.device)
-
-    def init_log_partition(self):
-        log_partition = torch.tensor(0.).to(self.device)
-        M = 0
-        num_batches = 100
-        self.generator.eval()
-        self.discriminator.eval()
-
-        gen_loader = self.sample_images(self.eval_latents,self.args.noise_factor*self.args.b_size, as_list= True)
-        for data in gen_loader:
-            with torch.no_grad():
-                fake_data = -self.discriminator(data.to(self.device))
-                log_partition,M = cp.iterative_log_sum_exp(fake_data,log_partition,M)
-        log_partition = log_partition - np.log(M)
-        return torch.tensor(log_partition.item()).to(self.device)
-
 
     def compute_log_partition(self,fake_results, net_type):
         batch_log_partition = torch.logsumexp(-fake_results, dim=0)- np.log(fake_results.shape[0])
@@ -407,43 +389,49 @@ class Trainer(object):
                 for img in base_loader:
                     energy  = -self.discriminator(img.to(self.device))
                     if self.args.criterion == 'donsker':
-                        base_mean,M = cp.iterative_log_sum_exp(energy,base_mean,M)
+                        base_mean,M = cp.iterative_log_sum_exp(torch.exp(energy),base_mean,M)
                     else:
                         energy = -torch.exp(energy - self.log_partition ) 
                         base_mean, M = cp.iterative_mean(energy, base_mean,M)
             if self.args.criterion=='donsker':
                 log_partition = 1.*base_mean -np.log(M)
                 base_mean = torch.tensor(-1.).to(self.device)
-
             else:
                 log_partition = self.log_partition
+
         else:
-            base_mean, log_partition = precomputed_stats 
+            base_mean, log_partition= precomputed_stats 
 
         M = 0
-        for data, target in data_loader:
+        for data, target in data_loader: 
             with torch.no_grad():
-
                 data_energy = -(self.discriminator(data.to(self.device)) + log_partition)
             data_mean, M = cp.iterative_mean(data_energy, data_mean,M)
-        M=0
-        if self.args.criterion=='donsker':
-            data = base_loader[0]
-            energy  = -self.discriminator(data.to(self.device))
-            log_partition,M = cp.iterative_log_sum_exp(energy,torch.tensor(0.).to(self.device),M)
-            log_partition -= np.log(M) 
 
         KALE = data_mean + base_mean + 1
-        return KALE, data_mean, base_mean, log_partition
+        return KALE, base_mean, log_partition
 
+    #### FOR Sampling
     #### FOR Sampling
     def init_latents(self):
         if self.args.latent_sampler == 'dot':
             priors = 1.*self.eval_latents.unsqueeze(-1).clone()
+            max_samples = np.minimum(1000, self.eval_latents.shape[0])
+            self.latent_sampler.estimate_lip(self.eval_latents[:max_samples].to(self.device))
             out = torch.cat([self.eval_latents.unsqueeze(-1), priors ], dim=-1)
+            return out
+        elif self.args.latent_sampler == 'lmc':
+            out = torch.cat([self.eval_latents.unsqueeze(-1), self.eval_velocity.unsqueeze(-1) ], dim=-1)
             return out
         else:
             return self.eval_latents
+    def get_posterior(self,posteriors):
+        if self.args.latent_sampler=='dot':
+            return posteriors[:,:,0]
+        elif self.args.latent_sampler=='lmc':
+            return posteriors[:,:,0]
+        else:
+            return posteriors
 
     def sample(self):
         T = 10
@@ -456,7 +444,8 @@ class Trainer(object):
                 posteriors = self.init_latents()
             else:
                 posteriors = self.sample_latents(posteriors, self.args.sample_b_size , T)
-            images = self.sample_images(posteriors,self.args.fid_b_size, as_list=True)
+
+            images = self.sample_images(self.get_posterior(posteriors),self.args.fid_b_size, as_list=True)
             fid_train, fid_test = self.compute_fid( images, loader_types = ['train','valid'])
             images = torch.cat(images, dim=0)
             saved_images = images[:64]
@@ -467,9 +456,9 @@ class Trainer(object):
             end = time.time()
             print(F'FID at step {iter_num}: {fid_train},  avg time {end-start}')
             start = end
-            if i%20==0 and i>0:
-                self.latent_sampler.gamma *= 0.1
-                print(f'decreasing lr for sampling: {self.latent_sampler.gamma}')
+            #if i%20==0 and i>0:
+            #    self.latent_sampler.gamma *= 0.1
+            #    print(f'decreasing lr for sampling: {self.latent_sampler.gamma}')
 
     def sample_latents(self,priors,b_size, T, with_acceptance = False):
         avg_time = 0
@@ -544,47 +533,30 @@ class Trainer(object):
 class TrainerEBM(Trainer):
     def __init__(self, args):
         self.args = args
-        self.train_loader, self.test_loader, self.valid_loader,self.input_dims = hp.get_data_loader(self.args)
+        self.train_loader, self.test_loader, self.valid_loader,self.input_dims = hp.get_data_loader(self.args,self.args.b_size, self.args.num_workers)
         args.Z_dim = int(self.input_dims)
-        self.dataset_size =  int(self.train_loader.dataset.X.shape[0])
-        self.epoch_counter = 0
-        self.previous_epoch = -1
+        self.dataset_size=  int(self.train_loader.dataset.X.shape[0])
         super(TrainerEBM, self).__init__(args)
-        if self.args.combined_discriminator and self.args.criterion in ['kale','donsker']:
+        if self.args.combined_discriminator:
             self.discriminator = models.energy_model.CombinedDiscriminator(self.discriminator, self.generator)
 
         if self.args.criterion=='cd':
-            sampler = hp.get_latent_sampler(self.args,self.discriminator,self.device)
-            self.cd_sampler = samplers.ContrastiveDivergenceSampler(self.noise_gen, sampler, self.device)
-    def log_dir_formatter(self,args):
-            return os.path.join(args.log_dir, args.mode, args.dataset, args.discriminator, args.criterion)
+            sampler = get_latent_sampler(self.args,self.discriminator,self.args.Z_dim,self.device)
+            self.cd_sampler = samplers.ContrastiveDivergenceSampler(self.noise_gen, sampler)
+
     def select_statistics(self):
-        statistics = ['nll_gen']
+        statistics = ['nll_gen','kale']
         has_log_density = getattr(self.discriminator, "log_density", None) is not None 
         has_log_partition =  getattr(self.discriminator, "log_partition", None) is not None 
         if has_log_density:
             statistics.append('nll_dis')
         if has_log_partition:
             statistics.append('gt_log_partition')
-        if self.args.criterion =='cd':
-            statistics.append('log_partition')
-        elif self.args.criterion in ['kale', 'donsker']:
-            statistics.append('kale')
+
         return statistics
 
-    def train(self):
-        done =False
-        if self.args.initialize_log_partition:
-            self.log_partition.data = self.init_log_partition()  
-        for epoch in range(self.args.total_epochs):
-            print('Epoch' + str(self.epoch_counter))
-            self.epoch_counter=epoch
-            self.train_epoch()
-
-
-    def eval(self):            
-
-        if np.mod(self.epoch_counter,10)==0 and self.epoch_counter> self.previous_epoch:
+    def eval(self):
+        if np.mod(self.counter,self.dataset_size)==0:
             statistics = self.select_statistics()
             gen_loader = self.sample_images(self.eval_latents,self.args.noise_factor*self.args.b_size, as_list= True)
 
@@ -593,33 +565,11 @@ class TrainerEBM(Trainer):
             test_dic,_,_ = self.compute_stats_dic(self.test_loader,gen_loader,'test', statistics, precomputed_stats = (base_mean, log_partition))
 
             total_dic = {**train_dic,**valid_dic, **test_dic}
-            out_dic = self.compute_final_stats(total_dic,statistics)
-            self.save_dictionary(out_dic)
-            print('Iteration:' +  str( int(self.counter)))
-            self.pp.pprint(out_dic)
-            self.previous_epoch = self.epoch_counter
-            
+            self.save_dictionary(total_dic)
+            self.print('Epoch' +  str( int(self.counter/self.dataset_size)))
+            self.pp.pprint(total_dic)
         #print(total_dic)
         # maybe keep track of best model on valid set
-    def compute_final_stats(self,stat_dic, statistics):
-        out = {}
-        splits = ['train', 'valid', 'test']
-        if self.args.combined_discriminator and self.args.criterion in  ['kale', 'donsker']:
-            for split in splits:
-                if 'nll_dis' in statistics and 'nll_gen' in statistics: 
-                    out[split + '_nll']=  stat_dic[split +'_nll_gen'] + stat_dic[split +'_nll_dis']
-                out[split+'_nkale'] = -stat_dic[split+'_kale'] + stat_dic[split +'_nll_gen']
-                out[split+'_nkale_dist'] = -stat_dic[split+'_data_mean']  + stat_dic[split +'_nll_gen']
-        elif  self.args.criterion in  ['cd', 'ml']:
-            for split in splits:
-                out[split+'_nll']= stat_dic[split+'_nll_dis']
-        if 'gt_log_partition' in statistics:
-            out['gt_log_partition'] = stat_dic['train_gt_log_partition']
-        if self.args.criterion in  ['kale', 'donsker','cd']:
-            out['log_partition'] = stat_dic['train_log_partition']
-        out['iter'] = self.counter 
-        out['epoch']= self.epoch_counter  
-        return out
 
     def compute_stats_dic(self,data_loader, gen_loader, loader_type, statistics = ['nll_gen','nll_dis','kale'],precomputed_stats=None ):
         stats_dic = {}
@@ -631,22 +581,17 @@ class TrainerEBM(Trainer):
             stats_dic[loader_type+'_nll_dis'] = nll_gen.item()
         if 'kale' in statistics:
 
-            KALE, data_mean, base_mean, log_partition = self.compute_kale(data_loader,gen_loader,precomputed_stats=precomputed_stats)
+            KALE, base_mean, log_partition = self.compute_kale(data_loader,gen_loader,precomputed_stats=precomputed_stats)
             stats_dic[loader_type+'_kale'] = KALE.item()
             stats_dic[loader_type+'_base_mean'] = base_mean.item()
-            stats_dic[loader_type+'_data_mean'] = data_mean.item()
             stats_dic[loader_type+'_log_partition'] = log_partition.item()
             precomputed_stats = (base_mean, log_partition)
-        elif 'log_partition' in statistics and self.args.criterion=='cd':
-            stats_dic[loader_type+'_log_partition'] = self.cd_sampler.log_partition(self.args.noise_factor*self.args.b_size).item()
-
-
         if 'gt_log_partition' in statistics:
             stats_dic[loader_type+'_gt_log_partition'] = self.discriminator.log_partition().item()
         if precomputed_stats is None:
 
 
-            return stats_dic, None, None
+            return stats_dic, None
         else:
             base_mean, log_partition = precomputed_stats
             return stats_dic, base_mean, log_partition
@@ -664,16 +609,15 @@ class TrainerEBM(Trainer):
             true_data = self.discriminator(data)
             fake_data = self.discriminator(gen_data)
             loss = true_data.mean() - fake_data.mean()
-            total_loss = self.add_penalty(loss, net_type, data, gen_data)
         elif self.args.criterion=='ml':
             if net_type=='discriminator':
                 model = self.discriminator
             elif net_type =='generator':
                 model = self.generator
             loss = -model.log_density(data).mean()
-            total_loss = self.add_penalty(loss, net_type, data, data)
+        total_loss = self.add_penalty(loss, net_type, data, gen_fdata_in)
 
-        total_loss.backward()
+        loss.backward()
         optimizer.step()
         return loss 
 
@@ -686,7 +630,7 @@ class TrainerEBM(Trainer):
 
 class TrainerToy(Trainer):
     def __init__(self, args):
-        self.train_loader, self.test_loader, self.valid_loader,self.input_dims = hp.get_data_loader(args)
+        self.train_loader, self.test_loader, self.valid_loader,self.input_dims = hp.get_data_loader(args,args.trainer.b_size, args.system.num_workers)
         args.Z_dim = self.input_dims
 
         self.args = args

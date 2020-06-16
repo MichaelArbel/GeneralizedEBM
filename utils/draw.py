@@ -27,11 +27,6 @@ model_map = {
 }
 
 
-def sshfs_fp(path):
-    if on_sshfs:
-        return os.path.join('swc_sshfs', path)
-    return path
-
 mpl.rc('font', family='Helvetica Neue')
 #mpl.rc('font', family='Humor Sans')
 def fid_plot(d_types):
