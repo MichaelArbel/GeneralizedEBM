@@ -1,0 +1,51 @@
+b_size: 128
+
+total_gen_iter: 150000
+
+g_model : 'sngan'
+d_model : 'sngan'
+
+optimizer: Adam
+criterion : 'donsker'
+log_dir : 'logs/'
+data_path : 'data/'
+log_name : ''
+
+penalty_type : 'gradient'
+penalty_lambda : 1.
+
+scheduler : 'ExponentialLR'
+scheduler_gamma : 0.8
+beta_1 : 0.5
+beta_2 : 0.999
+
+# train
+
+train_mode : 'both'
+with_fid : True
+
+
+# sampling stuff
+Z_dim : 100
+sample_b_size : 128
+
+
+
+seed : 0
+fid_samples : 50000
+
+bn : False
+skipinit : False
+
+
+lr : 0.0001
+lr_generator : 0.0001
+
+eval_fid : True
+eval_kale : True
+
+lmc_gamma : 0.001
+
+log_to_file : False
+mode : 'train'
+

@@ -5,7 +5,7 @@ import json
 import numpy as np
 import os
 import time
-#import thop
+
 import ast
 from torchvision.datasets import CIFAR10,ImageNet,DatasetFolder,LSUN
 import torchvision.transforms as transforms
@@ -58,7 +58,7 @@ def default_loader(path):
     else:
         return pil_loader(path)
 # choose dataloaders for pytorch
-def get_image_loader(args):
+def get_image_loader(args,b_size,num_workers):
     transform_train = transforms.Compose([
         transforms.ToTensor(),
         transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
@@ -71,10 +71,10 @@ def get_image_loader(args):
         spatial_size = 32
 
         trainset = CIFAR10(root='./data', train=True, download=True, transform=transform_train)
-        trainloader = torch.utils.data.DataLoader(trainset, batch_size=args.b_size, shuffle=True, num_workers=args.num_workers)
+        trainloader = torch.utils.data.DataLoader(trainset, batch_size=b_size, shuffle=True, num_workers=num_workers)
         n_classes=10
         testset = CIFAR10(root='./data', train=False, download=True, transform=transform_test)
-        testloader = torch.utils.data.DataLoader(testset, batch_size=args.b_size, shuffle=False, num_workers=args.num_workers)
+        testloader = torch.utils.data.DataLoader(testset, batch_size=b_size, shuffle=False, num_workers=num_workers)
     elif args.dataset == 'lsun':
         spatial_size = 32
 
@@ -92,30 +92,8 @@ def get_image_loader(args):
             root = args.data_path,
             classes = ['bedroom_val'],
             transform = transform_lsun)
-        trainloader = torch.utils.data.DataLoader(trainset, batch_size=args.b_size, shuffle=True, num_workers=args.num_workers)
-        testloader = torch.utils.data.DataLoader(testset, batch_size=args.b_size, shuffle=True, num_workers=args.num_workers)
-
-
-    # elif args.dataset in ['imagenet128', 'imagenet32']:
-    #     if args.dataset=='imagenet128':
-    #         size = 128
-    #     elif args.dataset=='imagenet32':
-    #         size = 32
-
-    #     transform_train = transforms.Compose([
-    #         transforms.CenterCrop(256),
-    #         transforms.Resize(size),
-    #         transforms.ToTensor(),
-    #         transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
-    #     ])
-    #     transform_test = transforms.Compose([
-    #         transforms.CenterCrop(256),
-    #         transforms.Resize(size),
-    #         transforms.ToTensor(),
-    #         transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
-    #     ])
-    #     trainset = DatasetFolder(args.imagenet_train_path,default_loader, IMG_EXTENSIONS,transform=transform_train )
-    #     testset = DatasetFolder(args.imagenet_test_path, default_loader,IMG_EXTENSIONS,transform=transform_test)
+        trainloader = torch.utils.data.DataLoader(trainset, batch_size=b_size, shuffle=True, num_workers=num_workers)
+        testloader = torch.utils.data.DataLoader(testset, batch_size=b_size, shuffle=True, num_workers=num_workers)
 
     elif args.dataset == 'imagenet32':
 
@@ -131,8 +109,8 @@ def get_image_loader(args):
         trainset = Imagenet32(args.imagenet_train_path, transform=transforms.Compose(transforms_train), sz=spatial_size)
         valset = Imagenet32(args.imagenet_test_path, transform=transforms.Compose(transforms_train), sz=spatial_size)
         n_classes=1000
-        trainloader = torch.utils.data.DataLoader(trainset, batch_size=args.b_size, shuffle=True, num_workers=args.num_workers)
-        testloader = torch.utils.data.DataLoader(valset, batch_size=args.b_size, shuffle=False, num_workers=args.num_workers)
+        trainloader = torch.utils.data.DataLoader(trainset, batch_size=b_size, shuffle=True, num_workers=num_workers)
+        testloader = torch.utils.data.DataLoader(valset, batch_size=b_size, shuffle=False, num_workers=num_workers)
 
 
 
@@ -160,15 +138,15 @@ def get_image_loader(args):
             split = 'train',
             transform = transform_train,download=False)
 
-        trainloader = torch.utils.data.DataLoader(trainset, batch_size=args.b_size, shuffle=True, num_workers=args.num_workers)
-        testloader = torch.utils.data.DataLoader(testset, batch_size=args.b_size, shuffle=False, num_workers=args.num_workers)
+        trainloader = torch.utils.data.DataLoader(trainset, batch_size=b_size, shuffle=True, num_workers=num_workers)
+        testloader = torch.utils.data.DataLoader(testset, batch_size=b_size, shuffle=False, num_workers=num_workers)
 
     else:
         raise NotImplementedError
     return trainloader,testloader, None
 
 
-def get_UCI_data_loader(args):
+def get_UCI_data_loader(args, b_size,num_workers):
     p = load_data(args.dataset)
 
     train_data = p.data
@@ -178,32 +156,32 @@ def get_UCI_data_loader(args):
     test_set = PrepareUCIData(test_data)
     valid_set = PrepareUCIData(valid_data)
 
-    trainloader = torch.utils.data.DataLoader(train_set, batch_size=args.b_size, shuffle=True, num_workers=args.num_workers)
-    testloader = torch.utils.data.DataLoader(test_set, batch_size=args.b_size, shuffle=True, num_workers=args.num_workers)
-    validloader = torch.utils.data.DataLoader(valid_set, batch_size=args.b_size, shuffle=True, num_workers=args.num_workers)
+    trainloader = torch.utils.data.DataLoader(train_set, batch_size=b_size, shuffle=True, num_workers=num_workers)
+    testloader = torch.utils.data.DataLoader(test_set, batch_size=b_size, shuffle=True, num_workers=num_workers)
+    validloader = torch.utils.data.DataLoader(valid_set, batch_size=b_size, shuffle=True, num_workers=num_workers)
 
     return trainloader,testloader,validloader
 
-def get_toy_loader(args,device):
+def get_toy_loader(args,b_size,device):
     import models.toy_models as tm
     N_samples = 5000
     dtype=  'float32'
-    dataset = tm.BaseDataset(N_samples,dtype, args.device, args.b_size, args.data_path)
+    dataset = tm.BaseDataset(N_samples,dtype, device, b_size, args.data_path)
 
     params = {'batch_size': args.b_size,
           'shuffle': True,
           'num_workers': 0}
     return torch.utils.data.DataLoader(dataset, **params)
 
-def get_data_loader(args):
+def get_data_loader(args, b_size,num_workers):
     if args.dataset_type=='images':
-        trainloader,testloader, validloader = get_image_loader(args)
+        trainloader,testloader, validloader = get_image_loader(args, b_size, num_workers)
         input_dims = None
     elif args.dataset_type=='UCI':
-        trainloader,testloader,validloader = get_UCI_data_loader(args)
+        trainloader,testloader,validloader = get_UCI_data_loader(args, b_size,num_workers)
         input_dims = np.array([trainloader.dataset.X.shape[1]])[0]
     elif args.dataset_type=='toy':
-        trainloader = get_toy_loader(args, 'cuda')
+        trainloader = get_toy_loader(args, b_size,'cuda')
         input_dims = 3
         validloader = trainloader
         testloader = trainloader
@@ -250,23 +228,11 @@ def get_scheduler(args,optimizer):
         return optim.lr_scheduler.ExponentialLR(optimizer, gamma=args.scheduler_gamma)
 
 
-
-# return some sort of latent noise
-#def get_normal(args, device, b_size):
-#    return torch.distributions.Normal(torch.zeros([b_size, args.Z_dim]).to(device), 1)
-
-
-def get_normal(args, device):
-    loc = torch.zeros(args.Z_dim).to(device)
-    scale = torch.ones(args.Z_dim).to(device)
+def get_normal(Z_dim, device):
+    loc = torch.zeros(Z_dim).to(device)
+    scale = torch.ones(Z_dim).to(device)
     normal = torch.distributions.normal.Normal(loc, scale)
     return torch.distributions.independent.Independent(normal,1)
-
-#     #return torch.distributions.MultivariateNormal(torch.zeros(args.Z_dim).to(device),torch.eye(args.Z_dim).to(device))
-
-# def normal_multinomial(args,device):
-#     noise_gen = get_normal(args,device)
-
 
 class ConditionalNoiseGen(nn.Module):
     def __init__(self, truncation,device):
@@ -291,26 +257,26 @@ class ConditionalNoiseGen(nn.Module):
 
 # return the distribution of the latent noise
 
-def get_latent_sampler(args,potential,device):
-    momentum = get_normal(args,device)
+def get_latent_sampler(args,potential,Z_dim,device):
+    momentum = get_normal(Z_dim,device)
     if args.latent_sampler=='hmc':
-        return samplers.HMCsampler(potential,momentum, T=args.num_lmc_steps, num_steps_min=10, num_steps_max=20,gamma=args.lmc_gamma,  kappa = args.lmc_kappa)
+        return samplers.HMCsampler(potential,momentum, T=args.num_sampler_steps, num_steps_min=10, num_steps_max=20,gamma=args.lmc_gamma,  kappa = args.lmc_kappa)
     elif args.latent_sampler=='lmc':
-        return samplers.LMCsampler(potential,momentum, T=args.num_lmc_steps, num_steps_min=10, num_steps_max=20,gamma=args.lmc_gamma,  kappa = args.lmc_kappa)
+        return samplers.LMCsampler(potential,momentum, T=args.num_sampler_steps, num_steps_min=10, num_steps_max=20,gamma=args.lmc_gamma,  kappa = args.lmc_kappa)
     elif args.latent_sampler=='langevin':
-        return samplers.LangevinSampler(potential,  T=args.num_lmc_steps,gamma=args.lmc_gamma)
+        return samplers.LangevinSampler(potential,  T=args.num_sampler_steps,gamma=args.lmc_gamma)
     elif args.latent_sampler=='mala':
-        return samplers.MALA(potential,  T=args.num_lmc_steps,gamma=args.lmc_gamma)
+        return samplers.MALA(potential,  T=args.num_sampler_steps,gamma=args.lmc_gamma)
     elif args.latent_sampler=='spherelangevin':
-        return samplers.SphereLangevinSampler(potential,  T=args.num_lmc_steps,gamma=args.lmc_gamma)
+        return samplers.SphereLangevinSampler(potential,  T=args.num_sampler_steps,gamma=args.lmc_gamma)
     elif args.latent_sampler=='dot':
-        return samplers.DOT(potential,  T=args.num_lmc_steps,gamma=args.lmc_gamma)
+        return samplers.DOT(potential,  T=args.num_sampler_steps,gamma=args.lmc_gamma)
     elif args.latent_sampler=='trunclangevin':
-        return samplers.TruncLangevinSampler(potential,momentum,trunc=args.trunc, sample_chain = args.lmc_sampler_chain, T=args.num_lmc_steps, num_steps_min=10, num_steps_max=20,gamma=args.lmc_gamma,  kappa = args.lmc_kappa)
+        return samplers.TruncLangevinSampler(potential,momentum,trunc=args.trunc, sample_chain = args.lmc_sampler_chain, T=args.num_sampler_steps, num_steps_min=10, num_steps_max=20,gamma=args.lmc_gamma,  kappa = args.lmc_kappa)
     elif args.latent_sampler=='mh':
-        return samplers.MetropolisHastings(potential, sample_chain = args.lmc_sampler_chain, T=args.num_lmc_steps, gamma=args.lmc_gamma )
+        return samplers.MetropolisHastings(potential, sample_chain = args.lmc_sampler_chain, T=args.num_sampler_steps, gamma=args.lmc_gamma )
     elif args.latent_sampler=='imh':
-        return samplers.IndependentMetropolisHastings(potential, sample_chain = args.lmc_sampler_chain, T=args.num_lmc_steps, gamma=args.lmc_gamma)
+        return samplers.IndependentMetropolisHastings(potential, sample_chain = args.lmc_sampler_chain, T=args.num_sampler_steps, gamma=args.lmc_gamma)
 
 
 def get_latent_noise(args,dim,device):
@@ -343,7 +309,8 @@ def get_energy(args,input_dims,device):
         return tm.Discriminator(3)
     elif args.discriminator=='are':
         return energy_model.Discriminator(input_dims, device).to(device)
-
+    elif args.discriminator=='are4':
+        return energy_model.Discriminator4(input_dims, device).to(device)
 
 # return the base for the energy model
 def get_base(args,input_dims,device):
@@ -405,5 +372,3 @@ def load_dictionary(file_name):
                 else:
                     out_dict[key] = [cur_dict[key]]
     return out_dict
-
-

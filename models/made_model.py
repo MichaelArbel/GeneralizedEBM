@@ -15,6 +15,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.autograd import Variable
 
+from models.mog_maf_model import create_masks
+
 def get_mask(in_features, out_features, in_flow_features, mask_type=None):
     """
     mask_type: input | None | output
@@ -509,7 +511,7 @@ class MADEMOG(nn.Module):
 
     @property
     def base_dist(self):
-        return D.Normal(self.base_dist_mean, self.base_dist_var)
+        return torch.distributions.normal.Normal(self.base_dist_mean, self.base_dist_var)
 
     def forward(self, x, y=None):
         # shapes
@@ -563,11 +565,11 @@ class MAFMOG(nn.Module):
         self.maf = MAF(n_blocks, input_size, hidden_size, n_hidden, cond_label_size, activation, input_order, batch_norm)
         # get reversed input order from the last layer (note in maf model, input_degrees are already flipped in for-loop model constructor
         input_degrees = self.maf.input_degrees#.flip(0)
-        self.mademog = MADEMOG(n_components, input_size, hidden_size, n_hidden, cond_label_size, activation, input_order, input_degrees)
+        self.mademog = MADEMOG(n_components, input_size, hidden_size, n_hidden, cond_label_size, activation, input_order, input_degrees=None)
 
     @property
     def base_dist(self):
-        return D.Normal(self.base_dist_mean, self.base_dist_var)
+        return torch.distributions.normal.Normal(self.base_dist_mean, self.base_dist_var)
 
     def forward(self, x, y=None):
         u, maf_log_abs_dets = self.maf(x, y)
@@ -595,11 +597,11 @@ class MAF(nn.Module):
         # base distribution for calculation of log prob under the model
         self.register_buffer('base_dist_mean', torch.zeros(input_size))
         self.register_buffer('base_dist_var', torch.ones(input_size))
-
+        self.input_degrees = None
         modules = []
-        for i in ragne(n_blocks):
-            modules +=[ MADE(input_size, hidden_size, activation=activations ) , BatchNormFlow(input_size), Reverse(input_size) ]
-        self.maf = FlowSequential(**modules)
+        for i in range(n_blocks):
+            modules +=[ MADE(input_size, hidden_size, act=activation ) , BatchNormFlow(input_size), Reverse(input_size) ]
+        self.maf = FlowSequential(*modules)
 
         # get reversed input order from the last layer (note in maf model, input_degrees are already flipped in for-loop model constructor
         #input_degrees = self.maf.input_degrees#.flip(0)
@@ -607,7 +609,7 @@ class MAF(nn.Module):
 
     @property
     def base_dist(self):
-        return D.Normal(self.base_dist_mean, self.base_dist_var)
+        return torch.distributions.normal.Normal(self.base_dist_mean, self.base_dist_var)
 
     def forward(self, x, y=None):
         u, maf_log_abs_dets = self.maf(x, y)

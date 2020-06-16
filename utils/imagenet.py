@@ -274,10 +274,6 @@ class MiniImagenet(DatasetFolder):
                 data = np.vstack(data)
                 targets = np.concatenate(targets)
                 data = data.transpose((0,2,3,1))
-                #torch_data = torch.from_numpy(data)
-                #torch_targets = torch.from_numpy(np.array(targets))
-                #torch.save(torch_data, data_name)
-                #torch.save(torch_targets, targets_name)
             else:
                 data = torch.load(torch_data)
                 targets = torch.load(torch_targets)

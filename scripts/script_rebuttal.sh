@@ -1,1 +1,0 @@
-python run_energy.py --config=configs/redwine_nvp.yaml --device=1 --log_name='redwine_adversarial' &

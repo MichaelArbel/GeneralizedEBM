@@ -142,10 +142,10 @@ class FlowGenerator(nn.Module):
         num_blocks = 5
         self.n_components = 10
         n_hidden = 1
-        if flow_type=='mafmog':
-            self.model = made.MAFMOG(num_blocks,self.n_components, num_inputs,hidden_size,n_hidden,batch_norm=with_bn)
+        if flow_type=='mogmaf':
+            self.model = MAFMOG(num_blocks,self.n_components, num_inputs,hidden_size,n_hidden,batch_norm=with_bn)
         elif flow_type=='maf':
-            self.model = made.MAF(num_blocks, num_inputs,hidden_size,n_hidden,batch_norm=with_bn)
+            self.model = MAF(num_blocks, num_inputs,hidden_size,n_hidden,batch_norm=with_bn)
         elif flow_type=='made':
             self.model = made.MADE(num_inputs,hidden_size, act= 'lrelu')
         self.max = 10
@@ -319,7 +319,7 @@ class Discriminator(nn.Module):
         for i in range(n_blocks-1):
             modules += [ nn.LeakyReLU(self.leak) , self.make_linear(d_in, d_out, n_hidden, device)]
 
-        modules +=[ nn.LeakyReLU(self.leak) , nn.Linear(d_in, 1) ]
+        modules +=[ nn.LeakyReLU(self.leak) , spectral_norm(nn.Linear(d_in, 1)) ]
 
         self.net = nn.Sequential(*modules)
 
@@ -335,8 +335,8 @@ class Discriminator(nn.Module):
         net = []
         net.append( spectral_norm(nn.Linear(d_in, d_out )))
         for m in range(n_hidden):
-            net += [nn.LeakyReLU(self.leak)  ,nn.Linear(d_out, d_out)] 
-        net += [nn.LeakyReLU(self.leak)  , nn.Linear(d_out, d_in)] 
+            net += [nn.LeakyReLU(self.leak)  ,spectral_norm(nn.Linear(d_out, d_out))] 
+        net += [nn.LeakyReLU(self.leak)  , spectral_norm(nn.Linear(d_out, d_in))] 
 
         net = nn.Sequential(*net)
         return net
@@ -353,4 +353,112 @@ class MaskedLinear(nn.Module):
         out = F.linear(x, self.linear.weight * self.mask,
                           self.linear.bias)
         return out
+
+
+class Discriminator(nn.Module):
+    def __init__(self,dim,device):
+        super(Discriminator, self).__init__()
+        kernel_size = 3
+        d_1,d_2,d_3= 100,200,100
+        d_0 = int(dim)
+
+        mask_1 = made.get_mask(d_0, d_1, d_0+1, mask_type='input')
+        mask_2 = made.get_mask(d_1, d_2, d_0)
+        #mask_2 = made.get_mask(d_2, d_3, d_0)
+        mask_3 = made.get_mask(d_2, d_3, d_0, mask_type='output')
+
+
+        self.linear1 = MaskedLinear(d_0, d_1, mask_1,device)
+        self.linear2 = MaskedLinear(d_1, d_2, mask_2,device)
+        self.linear3 = MaskedLinear(d_2, d_3, mask_3,device)
+        #self.linear4 = MaskedLinear(d_4, d_4, mask_4,device)
+
+
+        #self.linear1 = Linear(d_0, d_1, mask_1,device)
+        #self.linear2 = Linear(d_1, d_2, mask_2,device)
+        #self.linear3 = Linear(d_2, d_3, mask_3,device)
+
+
+        #self.linear4 = spectral_norm(nn.Linear(d_3, 1))
+        self.linear4 = spectral_norm(nn.Linear(d_3, 1))
+        self.max = 10
+
+
+    def forward(self, x):
+        m = x
+
+        m = nn.LeakyReLU(leak)(self.linear1(m))
+        m = nn.LeakyReLU(leak)(self.linear2(m))
+        m = nn.LeakyReLU(leak)(self.linear3(m))
+        #m = nn.LeakyReLU(leak)(self.linear4(m))
+
+        m = self.linear4(m)
+        m = nn.ReLU()(m+self.max)-self.max
+        return m
+
+
+
+class MaskedLinear(nn.Module):
+    def __init__(self, in_features, out_features, mask,device):
+        super(MaskedLinear, self).__init__()
+
+        #self.linear = spectral_norm(nn.Linear(in_features, out_features))
+        self.linear = spectral_norm(nn.Linear(in_features, out_features)).to(device)
+        self.register_buffer('mask', mask)
+    def forward(self,x):
+        out = F.linear(x, self.linear.weight * self.mask,
+                          self.linear.bias)
+        return out
+
+
+class Discriminator4(nn.Module):
+    def __init__(self,dim,device):
+        super(Discriminator4, self).__init__()
+        kernel_size = 3
+        d_1,d_2,d_3,d_4= 100,200,200,100
+        d_0 = int(dim)
+
+        mask_1 = made.get_mask(d_0, d_1, d_0+1, mask_type='input')
+        mask_2 = made.get_mask(d_1, d_2, d_0)
+        mask_3 = made.get_mask(d_2, d_3, d_0)
+        mask_4 = made.get_mask(d_3, d_4, d_0, mask_type='output')
+
+
+        self.linear1 = MaskedLinear(d_0, d_1, mask_1,device)
+        self.linear2 = MaskedLinear(d_1, d_2, mask_2,device)
+        self.linear3 = MaskedLinear(d_2, d_3, mask_3,device)
+        self.linear4 = MaskedLinear(d_3, d_4, mask_4,device)
+
+
+
+        self.linear5 = nn.Linear(d_4, 1)
+        self.max = 10
+
+
+    def forward(self, x):
+        m = x
+
+        m = nn.LeakyReLU(leak)(self.linear1(m))
+        m = nn.LeakyReLU(leak)(self.linear2(m))
+        m = nn.LeakyReLU(leak)(self.linear3(m))
+        m = nn.LeakyReLU(leak)(self.linear4(m))
+
+        m = self.linear5(m)
+        m = nn.ReLU()(m+self.max)-self.max
+        return m
+
+
+
+class MaskedLinear(nn.Module):
+    def __init__(self, in_features, out_features, mask,device):
+        super(MaskedLinear, self).__init__()
+
+        #self.linear = spectral_norm(nn.Linear(in_features, out_features))
+        self.linear = nn.Linear(in_features, out_features).to(device)
+        self.register_buffer('mask', mask)
+    def forward(self,x):
+        out = F.linear(x, self.linear.weight * self.mask,
+                          self.linear.bias)
+        return out
+
 

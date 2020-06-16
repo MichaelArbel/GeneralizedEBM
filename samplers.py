@@ -12,19 +12,15 @@ import compute as cp
 class Latent_potential(nn.Module):
 
     def __init__(self, generator,discriminator,latent_prior, temperature=100):
-        #super(Latent_potential).__init__()
         super().__init__()
         self.generator = generator
         self.discriminator = discriminator
         self.latent_prior = latent_prior
         self.temperature = temperature
     def forward(self,Z):
-        #with torch.no_grad():
         out = self.generator(Z)
         out =  self.discriminator(out)
         out = -self.latent_prior.log_prob(Z) + self.temperature*out 
-        #out = 0.5 * torch.norm(Z, dim=1) ** 2 + out
-        #out = 0.5 * torch.norm(Z, dim=1) ** 2 + out
 
         return out
 
@@ -93,13 +89,10 @@ class LMCsampler(object):
         self.grad_potential = Grad_potential(self.potential)
         self.T = T
         self.dUdX = None
-        #self.grad_momentum = Grad_potential(self.momentum.log_prob)
-        #self.sampler_momentum = momentum_sampler 
-        
     def sample(self,prior_z,sample_chain=False,T=None,thinning=10):
         if T is None:
             T = self.T
-        sampler = torch.distributions.Normal(torch.zeros_like(prior_z), 1.)
+        
         
         #self.momentum.eval()
         self.potential.eval()
@@ -111,8 +104,9 @@ class LMCsampler(object):
         num_steps =1
         U  =  torch.zeros([prior_z.shape[0]]).to(prior_z.device)
 
-        Z_t = prior_z.clone().detach()
-        V_t = torch.zeros_like(Z_t)
+        Z_t = prior_z[:,:,0].clone().detach()
+        V_t = prior_z[:,:,1].clone().detach()
+        sampler = torch.distributions.Normal(torch.zeros_like(Z_t), 1.)
         #V_t = self.momentum.sample([Z_t.shape[0]])
         t_extract_list.append(0)
         Z_extract_list.append(Z_t)
@@ -122,23 +116,8 @@ class LMCsampler(object):
         V_0 = torch.zeros_like(Z_t)
         gamma = self.gamma
         for t in range(1, T+1):
-            # reset computation graph
-            #V_t = self.momentum.sample([Z_t.shape[0]])
-            #U = U.uniform_(0,1)
-            #Z_new,V_new = self.leapfrog(Z_t,V_t,self.grad_potential,sampler,T=num_steps,gamma=self.gamma,kappa=self.kappa)
-            #V_t = torch.zeros_like(Z_t)
-            #Z_t,V_t = self.leapfrog(Z_t,V_t,self.grad_potential,sampler,T=num_steps,gamma=self.gamma,kappa=self.kappa)
-            Z_t,V_t = self.leapfrog(Z_t,V_t,self.grad_potential,sampler,T=num_steps,gamma=gamma,kappa=self.kappa)
-            if t>0 and t%200==0:
-                gamma *=0.1
-                print('decreasing lr for sampling')            
-            #Z_tmp,V_tmp,acc_prob = self.hasing_metropolis(Z_new, V_new, Z_t, V_t, self.potential,self.momentum.log_prob, U)
-            #Z_t,V_t,acc_prob = self.hasing_metropolis_2(Z_new, V_new, Z_t,V_t, Z_0, V_0, self.potential,self.momentum.log_prob, U)
-            #Z_t = Z_new
-            #V_t = V_new
-            #Z_t,acc_prob = self.hasing_metropolis(Z_new, V_new, Z_t, V_t, self.potential,self.momentum.log_prob, U)
-            #print( 'avg_acceptence: ' +  str(acc_prob.mean().item() ) + ', iteration: '+ str(t))
-            # only if extracting the samples so we have a sequence of samples
+            Z_t,V_t = self.leapfrog(Z_t,V_t,self.grad_potential,sampler,T=num_steps,lmbda=gamma,kappa=self.kappa)
+
             if sample_chain and thinning != 0 and t % thinning == 0:
                 t_extract_list.append(t)
                 Z_extract_list.append(Z_t.clone().detach().cpu())
@@ -146,13 +125,13 @@ class LMCsampler(object):
                 avg_acceptence_list.append(1.)
             #print('iteration: '+ str(t))
         if not sample_chain:
-            return Z_t.clone().detach(), 1.
+            return torch.cat([Z_t.unsqueeze(-1) ,V_t.unsqueeze(-1) ],dim=-1).clone().detach(), 1.
         return t_extract_list, Z_extract_list,avg_acceptence_list
 
-    def leapfrog(self,x,v,grad_x,sampler,T=100,gamma=1e-2,kappa=4e-2):
+    def leapfrog(self,x,v,grad_x,sampler,T=100, lmbda=1e-2,kappa=4e-2):
         x_t = x.clone().detach()
         v_t = v.clone().detach()
-
+        gamma = 2.*np.sqrt(lmbda)
         C = np.exp(-kappa * gamma)
         D = np.sqrt(1 - np.exp(-2 * kappa * gamma))
         for t in range(T):
@@ -236,7 +215,7 @@ class HMCsampler(object):
 
 
         num_steps = np.random.randint(self.num_steps_min, self.num_steps_max + 1)
-        num_steps = 1
+        num_steps = 2
         U  =  torch.zeros([prior_z.shape[0]]).to(prior_z.device)
 
         Z_t = prior_z.clone().detach()
@@ -247,7 +226,7 @@ class HMCsampler(object):
             # reset computation graph
             V_t = self.momentum.sample([Z_t.shape[0]])
             U = U.uniform_(0,1)
-            Z_new,V_new = self.leapfrog(Z_t,V_t,self.grad_potential,sampler,T=num_steps,gamma=self.gamma,kappa=self.kappa)
+            Z_new,V_new = self.leapfrog(Z_t,V_t,self.grad_potential,sampler,T=num_steps,lmbda=self.gamma,kappa=self.kappa)
             V_new = -V_new
             Z_t,V_t,acc_prob = self.hasing_metropolis(Z_new, V_new, Z_t, V_t, self.potential,self.momentum.log_prob, U)
             # only if extracting the samples so we have a sequence of samples
@@ -256,12 +235,13 @@ class HMCsampler(object):
                 Z_extract_list.append(Z_t.clone().detach().cpu())
                 accept_proba_list.append(acc_prob.clone().detach().cpu())
         if not sample_chain:
-            return Z_t.clone().detach()
+            return Z_t.clone().detach(), acc_prob.mean().item()
         return t_extract_list, Z_extract_list
 
-    def leapfrog(self,x,v,grad_x,sampler,T=100,gamma=1e-2,kappa=4e-2):
+    def leapfrog(self,x,v,grad_x,sampler,T=100,lmbda=1e-2,kappa=4e-2):
         x_t = x.clone().detach()
         v_t = v.clone().detach()
+        gamma = 2.*np.sqrt(lmbda)
         for t in range(T):
             # reset computation graph
             x_t.detach_()
@@ -322,7 +302,6 @@ class LangevinSampler(object):
         t_extract_list = []
         Z_extract_list = []
         accept_list = []
-        #num_steps = np.random.randint(self.num_steps_min, self.num_steps_max + 1)
 
         Z_t = prior_z.clone().detach()
         
@@ -336,7 +315,6 @@ class LangevinSampler(object):
 
             # reset computation graph
             Z_t = self.euler(Z_t,self.grad_potential,sampler,gamma=gamma)
-            #Z_t,acc_prob = hasing_metropolis(Z_new, V_new, Z_t, V_t, self.potential,self.momentum.log_prob, U)
             # only if extracting the samples so we have a sequence of samples
             if t>0 and t%200==0:
                 gamma *=0.1
@@ -358,14 +336,9 @@ class SphereLangevinSampler(object):
     def __init__(self, potential, T=100,  gamma=1e-2):          
         
         self.potential = potential
-        
-        #self.num_steps_min = num_steps_min
-        #self.num_steps_max = num_steps_max
         self.gamma = gamma
         self.grad_potential = Grad_potential(self.potential)
         self.T = T
-        #self.grad_momentum = Grad_potential(self.momentum.log_prob)
-        #self.sampler_momentum = momentum_sampler 
         
     def sample(self,prior_z,sample_chain=False,T=None,thinning=10):
         if T is None:
@@ -377,7 +350,6 @@ class SphereLangevinSampler(object):
         t_extract_list = []
         Z_extract_list = []
         accept_list = []
-        #num_steps = np.random.randint(self.num_steps_min, self.num_steps_max + 1)
 
         Z_t = prior_z.clone().detach()
         
@@ -391,7 +363,6 @@ class SphereLangevinSampler(object):
 
             # reset computation graph
             Z_t = self.euler(Z_t,self.grad_potential,sampler,gamma=gamma)
-            #Z_t,acc_prob = hasing_metropolis(Z_new, V_new, Z_t, V_t, self.potential,self.momentum.log_prob, U)
             # only if extracting the samples so we have a sequence of samples
             if t>0 and t%200==0:
                 gamma *=0.1
@@ -426,9 +397,14 @@ class DOT(object):
         self.T = T
         self.init_latent = None
         self.init_prior = None
+        self.Lip_constant =None
         #self.grad_momentum = Grad_potential(self.momentum.log_prob)
         #self.sampler_momentum = momentum_sampler 
     
+    def estimate_lip(self, prior_z):
+        grad_norm = torch.norm(self.grad_potential(prior_z),dim=-1)
+        self.Lip_constant = torch.max(grad_norm)
+
     def sample(self,prior_z,sample_chain=False,T=None,thinning=10):
         if T is None:
             T = self.T
@@ -439,10 +415,8 @@ class DOT(object):
         t_extract_list = []
         Z_extract_list = []
         accept_list = []
-        #num_steps = np.random.randint(self.num_steps_min, self.num_steps_max + 1)
-        assert len( prior_z.shape )==2
-        Z_t = prior_z[:,0].clone().detach()
-        self.init_prior = prior_z[:,1].clone().detach()
+        Z_t = prior_z[:,:,0].clone().detach()
+        self.init_prior = prior_z[:,:,1].clone().detach()
         
         gamma = 1.*self.gamma
         #print(f'Initial lr: {gamma}')
@@ -454,7 +428,6 @@ class DOT(object):
 
             # reset computation graph
             Z_t = self.update(Z_t,gamma=gamma)
-            #Z_t,acc_prob = hasing_metropolis(Z_new, V_new, Z_t, V_t, self.potential,self.momentum.log_prob, U)
             # only if extracting the samples so we have a sequence of samples
             if t>0 and t%200==0:
                 gamma *=0.1
@@ -462,6 +435,7 @@ class DOT(object):
 
             #print('iteration: '+ str(t))
         if not sample_chain:
+            Z_t = torch.cat([Z_t.unsqueeze(-1), self.init_prior.unsqueeze(-1)],dim=-1 )
             return Z_t.clone().detach(),1.
         return t_extract_list, Z_extract_list, accept_list
 
@@ -472,12 +446,12 @@ class DOT(object):
         R = x_t.shape[1]
         x_t.requires_grad_()
         prox = torch.norm(x_t - self.init_prior.data + eps, dim=1)
-        out = self.potential(x_t).sum() + prox.sum()
+        out = self.potential(x_t).sum()/(self.Lip_constant) + prox.sum()
         out.backward()
 
         grad =  x_t.grad
         dot = torch.sum(grad*x_t, dim=1)
-        #grad = grad -   torch.einsum('n,nd->nd',dot,x_t)/np.sqrt(R)
+        grad = grad - torch.einsum('n,nd->nd',dot,x_t)/np.sqrt(R)
         x_t = x_t - gamma*grad
         return x_t
 
@@ -506,7 +480,6 @@ class MALA(object):
         t_extract_list = []
         Z_extract_list = []
         accept_list = []
-        #num_steps = np.random.randint(self.num_steps_min, self.num_steps_max + 1)
         U  =  torch.zeros([prior_z.shape[0]]).to(prior_z.device)
         Z_t = prior_z.clone().detach()
         old_grad = self.grad_potential(Z_t)
@@ -520,12 +493,6 @@ class MALA(object):
             # reset computation graph
             Z_new, new_grad, correction = self.euler(Z_t,old_grad,self.grad_potential,sampler,gamma=gamma)
             Z_t,old_grad,acc_prob = self.hasing_metropolis(Z_new, Z_t, new_grad, old_grad, self.potential,correction, U)
-            # only if extracting the samples so we have a sequence of samples
-            # if t>0 and t%200==0:
-            #     gamma *=0.1
-            #     print('decreasing lr for sampling')
-
-            #print('iteration: '+ str(t))
         if not sample_chain:
             return Z_t.clone().detach(), acc_prob.mean().item()
         return t_extract_list, Z_extract_list, accept_list
@@ -773,7 +740,7 @@ class ContrastiveDivergenceSampler(nn.Module):
         self.noise_gen = noise_gen
         self.sampler = sampler
         self.mask_int = None
-        self.T = 60
+        self.T = 10
         self.device=device
     def sample_buffer(self,data, N=128):
         if self.buffer is None:
