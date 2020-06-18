@@ -17,10 +17,12 @@
 This repository contains an implementation of the training and sampling methods proposed in [Generalized Energy Based Models](https://arxiv.org/abs/2003.05033) along with scripts to reproduce results of the paper.
 
 Samples using Underdamped Langevin dynamics:
+
 ![Cifar10](lmc_cifar.gif)
 ![ImageNet32](lmc_imagenet.gif)
 
 Samples using Overdamped Langevin dynamics:
+
 ![Cifar10](langevin_cifar.gif)
 ![ImageNet32](langevin_imagenet.gif)
 
