@@ -18,13 +18,10 @@ This repository contains an implementation of the training and sampling methods 
 
 Samples using Underdamped Langevin dynamics:
 ![Cifar10](lmc_cifar.gif)
-
 ![ImageNet32](lmc_imagenet.gif)
 
 Samples using Overdamped Langevin dynamics:
-
 ![Cifar10](langevin_cifar.gif)
-
 ![ImageNet32](langevin_imagenet.gif)
 
 ## Requirements
