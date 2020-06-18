@@ -72,29 +72,29 @@ To use CPU set —device=-2
 ## Full documentation
 
 ```
---log_name                  log name ['']
+--log_name 					log name ['']
 --log_dir 					log directory for summaries and checkpoints ['']
 --d_path 					path to the trained energy network
 --g_path 					path to the trained base network
---data_path                 directory to the dataset ['data']
+--data_path 				directory to the dataset ['data']
 --imagenet_train_path 		path to imagenet train set
---imagenet_test_path		path to imagenet test set
+--imagenet_test_path 		path to imagenet test set
 
 
---log_in_file               log output in a file [False]
+--log_in_file 				log output in a file [False]
 --save_nothing 				Disable saving of the model [False]
 --disp_freq 				frequency for displaying the loss [100]
 --checkpoint_freq 			frequency for saving checkpoints [1000]
 
 --mode 						either 'train' or 'sample' 
 --train_mode				either train both energy and base or only one of them ['both','energy','base']
---dataset                   name of the dataset to use  ['cifar10','CelebA','Imagenet32','lsun']
+--dataset 					name of the dataset to use  ['cifar10','CelebA','Imagenet32','lsun']
 
 
---device                    gpu device [0]
---seed                      seed for randomness [0]
---dtype                     32 for float32 and 64 for float64 ['32']
---num_workers				Number of workers of the dataloader ['4']
+--device 					gpu device [0]
+--seed 						seed for randomness [0]
+--dtype 					32 for float32 and 64 for float64 ['32']
+--num_workers 				Number of workers of the dataloader ['4']
 --dataparallel 				parallelize over multiple gpus [False]
 --slurm_id 					job id when using slurm, modified internally ['']
 --trainer_type 				the class for training / sampling ['default']
@@ -102,8 +102,8 @@ To use CPU set —device=-2
 
 
 # Model parameters
---g_model                   architecture of the base network: ['dcgan','sngan']
---d_model                   architecture of the energy network: ['dcgan','sngan']
+--g_model 					architecture of the base network: ['dcgan','sngan']
+--d_model 					architecture of the energy network: ['dcgan','sngan']
 --generator 				network type of the base : ['convolutional']
 --discriminator 			network type of the energy : ['convolutional']
 --latent_noise 				the distribution of latent noise ['gaussian']
@@ -118,12 +118,12 @@ To use CPU set —device=-2
 --temperature 				temperature parameter [100]
 
 # Batch size
---fid_b_size				batch-size for computing FID [128]
+--fid_b_size 				batch-size for computing FID [128]
 --sample_b_size 			batch-size for sampling [1000]
 --b_size 					batch_size for training [128]
 
 # criterion
---criterion                 top level loss ['kale']
+--criterion 				top level loss ['kale']
 --penalty_type 				the penalty for training the energy ['gradient_l2','gradient','l2','none']
 --penalty_lambda 			strenght of the penalty [.1]
 --initialize_log_partition 	initialize log-partition using Monte-Carlo estimator [False]
@@ -137,37 +137,37 @@ To use CPU set —device=-2
 
 
 # Optimizer parameters
---optimizer                 Inner optimizer to compute the euclidean gradient['Adam']
---lr                        learning rate for the energy[.00001]
---lr_generator              learning rate for the base [.0002]
---sgd_momentum              momentum parameter for SGD [0.]
+--optimizer 				Inner optimizer to compute the euclidean gradient['Adam']
+--lr 						learning rate for the energy[.00001]
+--lr_generator 				learning rate for the base [.0002]
+--sgd_momentum 				momentum parameter for SGD [0.]
 --beta_1 					first parameter of Adam optimizer [.5]
---beta_2					second parameter of Adam optimizer [.9]
---weight_decay              weight decay [0.]
+--beta_2 					second parameter of Adam optimizer [.9]
+--weight_decay 				weight decay [0.]
 
 # Scheduler parameters 
---use_scheduler             schedule the lr ['store_true']
---scheduler                 scheduler ['MultiStepLR']
---milestone                 decrease schedule for lr at epochs  ['10,50,70']
+--use_scheduler 			schedule the lr ['store_true']
+--scheduler 				scheduler ['MultiStepLR']
+--milestone 				decrease schedule for lr at epochs  ['10,50,70']
 --scheduler_gamma 			decay of the learning rate ['.8']
 --lr_decay 					decay of the learning rate ['.8']
 
 # Metrics
---eval_kale					evaluate KALE on both training and test sets ['False']
+--eval_kale 				evaluate KALE on both training and test sets ['False']
 --fres_kale 				frequency for evaluating kale per iteratations [2000]
---eval_fid					evaluate the FID scores [False]
---fid_samples				number of generated samples to evaluate the score [50000]
+--eval_fid 					evaluate the FID scores [False]
+--fid_samples 				number of generated samples to evaluate the score [50000]
 --freq_fid 					frequency for evaluating FID per iteratations [2000]
 
 # Config path
---configs                   config file for the run ['']
+--configs 					config file for the run ['']
 ```
 
 ## Reference
 
 If using this code for research purposes, please cite:
 
-[1] M. Arbel, L. Zhou and A. Gretton[*Generalized Energy Based Models*](https://arxiv.org/abs/2003.05033)
+[1] M. Arbel, L. Zhou and A. Gretton [*Generalized Energy Based Models*](https://arxiv.org/abs/2003.05033)
 
 ```
 @article{arbel2020kale,
