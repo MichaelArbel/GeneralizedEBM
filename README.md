@@ -64,9 +64,11 @@ To be able to reproduce the results of the paper using the prodivided scripts, t
 
 ### Hardware
 
-To use a particular GPU, set —device=#gpu_id
-To use GPU without specifying a particular one, set —device=-1
-To use CPU set —device=-2
+To use a particular GPU, set '—device=#gpu_id'
+
+To use GPU without specifying a particular one, set '—device=-1'
+
+To use CPU set '—device=-2'
 
 
 ## Full documentation
