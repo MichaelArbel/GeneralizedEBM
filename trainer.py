@@ -311,7 +311,7 @@ class Trainer(object):
                 Z = self.noise_gen.sample([self.args.sample_b_size])
                 fake_data = self.generator(Z)
                 fake_data = -self.discriminator(fake_data)
-                cp.iterative_log_sum_exp(fake_data,log_partition,M)
+                log_partition,M = cp.iterative_log_sum_exp(fake_data,log_partition,M)
         log_partition = log_partition - np.log(M)
         return torch.tensor(log_partition.item()).to(self.device)
 
