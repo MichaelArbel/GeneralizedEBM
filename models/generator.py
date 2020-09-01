@@ -152,7 +152,10 @@ class Generator(nn.Module):
         elif self.nn_type in ['sngan']:
             output = self.dense(input).view(-1,self.gen_size *8 , self.s8,self.s8 )
             output = self.main(output)
-
+        elif self.nn_type in ['resnet-sn']:
+            output = self.dense(input).view(-1,self.gen_size , 4,4 )
+            output = self.main(output)
+        
         
         return output
 

@@ -44,7 +44,7 @@ sample_b_size : 500
 
 lmc_kappa : 100.
 latent_sampler : 'langevin'
-num_lmc_steps : 1000
+num_sampler_steps : 1000
 seed : 0
 eval_fid : True
 log_to_file : False

@@ -65,7 +65,7 @@ parser.add_argument('--num_blocks', default = 3, type= int, help='number of bloc
 # sampler parameters
 parser.add_argument('--latent_sampler',  default ='langevin' ,type= str ,  help='which sampler to use ["langevin","mala","lmc","hmc"]')
 parser.add_argument('--lmc_gamma', default=100., type=float, help='step-size for the lmc sampler: [1e-2]')
-parser.add_argument('--lmc_kappa', default=1e-2, type=float, help='friction parameter of the lmc sampler: ['100.']')
+parser.add_argument('--lmc_kappa', default=1e-2, type=float, help='friction parameter of the lmc sampler: ["100."]')
 parser.add_argument('--num_sampler_steps', default = 1000, type= int,  help='number of sampler steps [100]')
 parser.add_argument('--temperature', default = 100. ,type= float , help='temperature parameter [100]')
 
@@ -96,7 +96,7 @@ parser.add_argument('--noise_factor', default = 1, type= int,  help='factor mult
 
 
 # optimizer parameters
-parser.add_argument('--optimizer', default='Adam', type= str, help='Inner optimizer to compute the euclidean gradient['Adam']')
+parser.add_argument('--optimizer', default='Adam', type= str, help='Inner optimizer to compute the euclidean gradient["Adam"]')
 parser.add_argument('--lr', default=0.00001, type=float, help='learning rate for the energy[.00001]')
 parser.add_argument('--lr_generator', default=0.0002, type=float, help='learning rate for the base [.0002]')
 parser.add_argument('--sgd_momentum', default=0., type=float, help='momentum parameter for SGD [0.]')
@@ -122,7 +122,7 @@ parser.add_argument('--freq_fid', default = 2000, type= int, help='frequency for
 
 
 
-#parser.add_argument('--skipinit', action='store_true', help='calculate FID, but takes time')
+parser.add_argument('--skipinit', action='store_true', help='calculate FID, but takes time')
 #parser.add_argument('--train_mode_fid', action='store_true', help='calculate FID, but takes time')
 
 
