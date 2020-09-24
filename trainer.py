@@ -26,8 +26,9 @@ from utils import timer
 
 import models
 
-from utils.fid_scheduler import FIDScheduler
+from utils.fid_scheduler import FIDScheduler, MMDScheduler
 from utils import vizualization as viz
+import utils.kid_score as kid_score
 
 class Trainer(object):
     def __init__(self, args):
@@ -101,6 +102,8 @@ class Trainer(object):
 
         if self.args.latent_sampler in ['imh', 'dot','spherelangevin']:
             self.latent_potential = samplers.Independent_Latent_potential(self.generator,self.discriminator,self.noise_gen) 
+        elif self.args.latent_sampler in ['zero_temperature_langevin']:
+            self.latent_potential = samplers.Cold_Latent_potential(self.generator,self.discriminator) 
         else:
             self.latent_potential = samplers.Latent_potential(self.generator,self.discriminator,self.noise_gen, self.args.temperature) 
         
@@ -111,6 +114,7 @@ class Trainer(object):
             block_idx = cp.InceptionV3.BLOCK_INDEX_BY_DIM[2048]
             self.fid_model = cp.InceptionV3([block_idx]).to(self.device)
             self.fid_scheduler = FIDScheduler(self.args)
+            self.fid_scheduler = MMDScheduler(self.args,self.device) 
             self.fid_scheduler.init_trainer(self)
             self.fid_train = -1.
         else:
@@ -120,7 +124,15 @@ class Trainer(object):
         if self.args.dataparallel and dev_count>1 :
             self.generator = torch.nn.DataParallel(self.generator,device_ids=list(range(dev_count)))
             self.discriminator = torch.nn.DataParallel(self.discriminator,device_ids=list(range(dev_count)))
-
+        self.accum_loss_g = []
+        self.accum_loss_d = []
+        self.true_train_scores = None
+        self.true_valid_scores = None
+        self.true_train_mu = None
+        self.true_train_sigma = None
+        self.true_valid_mu = None
+        self.true_valid_sigma = None
+        self.kids = None
     def main(self):
         print(f'==> Mode: {self.mode}')
         if self.mode == 'train':
@@ -161,9 +173,6 @@ class Trainer(object):
 
     def train_epoch(self):
 
-        accum_loss_g = []
-        accum_loss_d = []
-
         for batch_idx, (data, target) in enumerate(self.train_loader):
             data = data.to(self.device).clone().detach()
             self.counter += 1
@@ -172,39 +181,39 @@ class Trainer(object):
             if is_gstep:
                 self.g_counter +=1
                 self.g_loss = self.iteration(data, net_type='generator')
-                accum_loss_g.append(self.g_loss.item())
+                self.accum_loss_g.append(self.g_loss.item())
             else:
                 self.d_loss = self.iteration(data, net_type='discriminator')
-                accum_loss_d.append(self.d_loss.item())
+                self.accum_loss_d.append(self.d_loss.item())
             
             if self.args.train_mode =='both':
                 counter = self.g_counter
                 is_valid_step = is_gstep
                 if self.g_counter % self.args.disp_freq == 0 and is_gstep:
-                    ag = np.asarray(accum_loss_g).mean()
-                    ad = np.asarray(accum_loss_d).mean()
+                    ag = np.asarray(self.accum_loss_g).mean()
+                    ad = np.asarray(self.accum_loss_d).mean()
                     self.save_dictionary({'g_loss':ag, 'd_loss':ad, 'loss_iter': self.g_counter})
                     self.timer(self.g_counter, " base loss: %.8f, energy loss: %.8f" % ( ag, ad))
-                    accum_loss_g = []
-                    accum_loss_d = []
+                    self.accum_loss_g = []
+                    self.accum_loss_d = []
 
             elif self.args.train_mode =='base':
                 counter = self.g_counter
                 is_valid_step = is_gstep
                 if self.g_counter % self.args.disp_freq == 0 and is_gstep:
-                    ag = np.asarray(accum_loss_g).mean()
+                    ag = np.asarray(self.accum_loss_g).mean()
                     self.save_dictionary({'g_loss':ag, 'loss_iter': self.g_counter})
                     self.timer(self.g_counter, " base loss: %.8f" % ag)
-                    accum_loss_g = []
+                    self.accum_loss_g = []
             
             elif self.args.train_mode =='energy':
                 counter = self.counter
                 is_valid_step = is_dstep
                 if self.counter % self.args.disp_freq == 0 and is_dstep:
-                    ad = np.asarray(accum_loss_d).mean()
+                    ad = np.asarray(self.accum_loss_d).mean()
                     self.save_dictionary({'d_loss':ad, 'loss_iter': self.counter})
                     self.timer(self.counter, " energy loss: %.8f" % ad)
-                    accum_loss_d = []
+                    self.accum_loss_d = []
 
             if counter % self.args.checkpoint_freq == 0 and is_valid_step:
                 if self.args.train_mode in ['both', 'base'] and self.args.dataset_type=='images':
@@ -216,13 +225,20 @@ class Trainer(object):
             self.eval_kale = is_valid_step and np.mod(counter,self.args.freq_kale)==0  and self.args.eval_kale
             self.eval()
             if self.args.use_scheduler:
-                if self.eval_fid:
-                    if eval_fid:
-                        self.fid_scheduler.step(self.fid_train)
+                if self.args.eval_fid:
+                    if self.eval_fid:
+                        self.fid_scheduler.step(self.fid_train, self.true_train_scores, self.fake_scores)
+                    # else:
+                    #     if np.mod(counter, 5000)==0 and valid_step and counter < 15001:
+                    #         print('decreasing lr')
+                    #         self.scheduler_d.step()
+                    #         self.scheduler_g.step()
                 else:
-                    self.scheduler_d.step()
-                    self.scheduler_g.step()
-   
+                    valid_step = ((self.args.train_mode =='base' or  self.args.train_mode =='both') and is_gstep) or self.args.train_mode =='energy'
+                    if np.mod(counter, 5000)==0 and valid_step:
+                        print('decreasing lr')
+                        self.scheduler_d.step()
+                        self.scheduler_g.step()
     def eval(self):
         if self.eval_fid or self.eval_kale:
             images = self.sample_images(self.eval_latents, self.args.sample_b_size, as_list=True)
@@ -233,9 +249,11 @@ class Trainer(object):
             if self.eval_fid:
             
                 images = torch.split( torch.cat(images, dim=0), self.args.fid_b_size, dim=0)
+                #self.get_activations(images, loader_types = ['train','valid'])
                 fid_train, fid_test = self.compute_fid( images, loader_types = ['train','valid'])
                 self.fid_train = fid_train
-                self.save_dictionary({'fid_train':fid_train, 'fid_test':fid_test, 'fid_iter':self.g_counter})
+                print(self.kids)
+                self.save_dictionary({'fid_train':fid_train, 'fid_test':fid_test, 'kid_train':self.kids['kid_train'],'kid_valid':self.kids['kid_valid'], 'fid_iter':self.g_counter})
 
 
     def which_step(self):
@@ -275,9 +293,10 @@ class Trainer(object):
         if train_mode:
             total_loss = self.add_penalty(loss, net_type, data, fake_data)
             total_loss.backward()
-            self.grad_clip(optimizer, net_type=net_type)
+            if self.args.grad_clip>0:
+                self.grad_clip(optimizer, net_type=net_type)
             optimizer.step()
-
+        #print(loss.item())
         return loss
 
     def prepare_optimizer(self,net_type):
@@ -352,32 +371,75 @@ class Trainer(object):
 
     # evaluate a pretrained model thoroughly via FID
     def compute_fid(self, gen_loader, loader_types = ['train','valid']):
+        self.get_activations(gen_loader,loader_types=loader_types )
+
+        fids = []
+        kids = []      
+        np_fake_scores = self.fake_scores.numpy()
+        mu2 = np.mean(np_fake_scores, axis=0)
+        sigma2 = np.cov(np_fake_scores, rowvar=False)
+
+        for loader_type in loader_types:
+            if loader_type == 'train':
+                data_loader = self.train_loader
+                np_true_scores = self.true_train_scores.numpy()
+                #if self.true_train_mu is None:
+                #    self.true_train_mu = np.mean(np_true_scores, axis=0)
+                #    self.true_train_sigma = np.cov(np_true_scores, rowvar=False)
+                #fid = cp.calculate_frechet_distance(self.true_train_mu, self.true_train_sigma, mu2, sigma2)
+            elif loader_type == 'valid':
+                data_loader = self.test_loader
+                np_true_scores = self.true_valid_scores.numpy()
+                #if self.true_valid_mu is None:
+                #    self.true_valid_mu = np.mean(np_true_scores, axis=0)
+                #    self.true_valid_sigma = np.cov(np_true_scores, rowvar=False)
+                #fid = cp.calculate_frechet_distance(self.true_valid_mu, self.true_valid_sigma, mu2, sigma2)
+            else:
+                raise NotImplementedError
+            mu1, sigma1 = cp.get_fid_stats(self.fid_model, data_loader, self.args.dataset, loader_type, self.device)            
+            fid = cp.calculate_frechet_distance(mu1, sigma1, mu2, sigma2)
+            kid = kid_score.polynomial_mmd_averages(np_true_scores, np_fake_scores, n_subsets=10)
+            kid = kid[0].mean()
+            fids.append(fid)
+            kids.append(kid)
+        self.kids = {'kid_train': kids[0], 'kid_valid':kids[1]}
+        return fids
+
+    def get_activations(self, gen_loader, loader_types = ['train','valid']):
         self.generator.to('cpu')
         self.discriminator.to('cpu')
         self.fid_model.to(self.device)
 
-        fids = []
-        pred_arr = cp.get_activations_from_loader(gen_loader, self.fid_model, self.device, self.args.fid_b_size )
-        pred_arr = pred_arr.numpy()
-        mu2 = np.mean(pred_arr, axis=0)
-        sigma2 = np.cov(pred_arr, rowvar=False)
+        self.fake_scores = cp.get_activations_from_loader(gen_loader, self.fid_model, self.device, batch_size=self.args.fid_b_size, total_samples = self.args.fid_samples)
         for loader_type in loader_types:
             if loader_type == 'train':
                 data_loader = self.train_loader
+                true_scores = self.true_train_scores
             elif loader_type == 'valid':
                 data_loader = self.test_loader
+                true_scores = self.true_valid_scores
             else:
                 raise NotImplementedError
-
-            mu1, sigma1 = cp.get_fid_stats(self.fid_model, data_loader, self.args.dataset, loader_type, self.device)            
-            fid = cp.calculate_frechet_distance(mu1, sigma1, mu2, sigma2)
-            fids.append(fid)
-
+            path = 'metrics/res/stats_pytorch/fid_scores_'+self.args.dataset+'_'+loader_type+'.npz'
+        
+            if true_scores is None:
+                try:
+                    f = np.load(path)
+                    true_scores = f['scores'][:]
+                    f.close()
+                    true_scores = torch.tensor(true_scores)
+                except:
+                    print('==> Computing data stats')
+                    true_scores = cp.get_activations_from_loader(self.train_loader, self.fid_model, self.device, batch_size=self.args.fid_b_size,total_samples= self.args.fid_samples, is_tuple=True )
+                    np.savez(path, scores=true_scores.numpy())
+                if loader_type == 'train':
+                    self.true_train_scores = true_scores.clone()
+                elif loader_type == 'valid':
+                    self.true_valid_scores = true_scores.clone()
         self.fid_model.to('cpu')
         self.generator.to(self.device)
         self.discriminator.to(self.device)
-
-        return fids
+        
 
     def compute_kale(self,data_loader,base_loader, precomputed_stats=None):
         self.discriminator.eval()

@@ -32,7 +32,6 @@ def logistic(true_data,fake_data,loss_type):
     else:
         loss = torch.nn.BCEWithLogitsLoss()(fake_data, torch.ones(fake_data.shape[0]).to(fake_data.device))
         return loss
-
 def kale(true_data,fake_data,loss_type):
     if loss_type=='discriminator':
         return  true_data.mean() + torch.exp(-fake_data).mean()  - 1
@@ -141,7 +140,7 @@ def get_fid_stats(fid_model, loader, dataset, dataset_type, device):
         np.savez(path, mu=mu, sigma=sigma)
     return mu, sigma
 
-def get_activations_from_loader(dataloader, model, device,batch_size=50, dims=2048, verbose=False):
+def get_activations_from_loader(dataloader, model, device,total_samples=50000,batch_size=50, dims=2048, verbose=False, is_tuple=False):
     """Calculates the activations of the pool_3 layer for all images.
     Params:
     -- files       : List of image files paths
@@ -166,21 +165,27 @@ def get_activations_from_loader(dataloader, model, device,batch_size=50, dims=20
     #n_used_imgs = n_batches * batch_size
 
     pred_arr = []
-
+    num_samples = 0
     for batch_idx, data in enumerate(dataloader):
-        if verbose:
-            print('\rPropagating batch %d' % (batch_idx + 1),
-                  end='', flush=True)
-        start = batch_idx * batch_size
-        end = start + batch_size
-        image_batch = (data+1.)*0.5
-        batch = image_batch.to(device)
-        with torch.no_grad():
-            pred = model(batch)[0]
-            if pred.shape[2] != 1 or pred.shape[3] != 1:
-                pred = adaptive_avg_pool2d(pred, output_size=(1, 1))
-            pred = pred.mean([2,3])
-            pred_arr.append(pred.cpu())
+        if is_tuple:
+            data,_ = data
+        if num_samples<=total_samples:
+            if verbose:
+                print('\rPropagating batch %d' % (batch_idx + 1),
+                      end='', flush=True)
+            start = batch_idx * batch_size
+            end = start + batch_size
+            image_batch = (data+1.)*0.5
+            batch = image_batch.to(device)
+            with torch.no_grad():
+                pred = model(batch)[0]
+                if pred.shape[2] != 1 or pred.shape[3] != 1:
+                    pred = adaptive_avg_pool2d(pred, output_size=(1, 1))
+                pred = pred.mean([2,3])
+                pred_arr.append(pred.cpu())
+            num_samples += data.shape[0]
+        else:
+            break
     pred_arr = torch.cat(pred_arr, dim=0)
     if verbose:
         print(' done')

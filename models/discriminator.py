@@ -15,9 +15,9 @@ spectral_norm = sn_official
 
 
 class Discriminator(nn.Module):
-    def __init__(self, nn_type='dcgan',bn=False,skipinit=False, **kwargs):
+    def __init__(self, nn_type='dcgan',bn=False,skipinit=False,no_trunc=False, **kwargs):
         super().__init__()
-
+        self.no_trunc=no_trunc
         self.nn_type = nn_type
         self.max = 10
         self.bn = bn
@@ -211,8 +211,9 @@ class Discriminator(nn.Module):
             skipinit=self.skipinit
             self.fc = nn.Linear(self.disc_size, 1)
             nn.init.xavier_uniform_(self.fc.weight.data, 1.)
-
+            print("building discriminator")
             self.main = nn.Sequential(
+                
                 FirstResBlockDiscriminator(nc, self.disc_size, stride=2, sn=1,bn=bn,skipinit=skipinit),
                 ResBlockDiscriminator(self.disc_size, self.disc_size, stride=2, sn=1,bn=bn,skipinit=skipinit),
                 ResBlockDiscriminator(self.disc_size, self.disc_size, sn=1,bn=bn,skipinit=skipinit),
@@ -252,8 +253,8 @@ class Discriminator(nn.Module):
             output =  self.fc(self.main(input))
         else:
             output = self.main(input)
-        
-        output = nn.ReLU()(output+self.max)-self.max
+        if not self.no_trunc:
+            output = nn.ReLU()(output+self.max)-self.max
         return output.view(-1, 1).squeeze(1)
 
 

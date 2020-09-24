@@ -265,6 +265,8 @@ def get_latent_sampler(args,potential,Z_dim,device):
         return samplers.LMCsampler(potential,momentum, T=args.num_sampler_steps, num_steps_min=10, num_steps_max=20,gamma=args.lmc_gamma,  kappa = args.lmc_kappa)
     elif args.latent_sampler=='langevin':
         return samplers.LangevinSampler(potential,  T=args.num_sampler_steps,gamma=args.lmc_gamma)
+    elif args.latent_sampler=='zero_temperature_langevin':
+        return samplers.ZeroTemperatureSampler(potential,  T=args.num_sampler_steps,gamma=args.lmc_gamma)
     elif args.latent_sampler=='mala':
         return samplers.MALA(potential,  T=args.num_sampler_steps,gamma=args.lmc_gamma)
     elif args.latent_sampler=='spherelangevin':
@@ -296,7 +298,7 @@ def get_latent_noise(args,dim,device):
 # return a discriminator for the energy model
 def get_energy(args,input_dims,device):
     if args.discriminator=='convolutional':
-        return Discriminator(nn_type=args.d_model, bn=args.bn,skipinit=args.skipinit).to(device)
+        return Discriminator(nn_type=args.d_model, bn=args.bn, no_trunc=args.no_trunc, skipinit=args.skipinit).to(device)
     elif args.discriminator=='nvp':
         return energy_model.NVP([input_dims], device,args.num_blocks,mode='discriminator',with_bn=args.dis_bn).to(device)
     elif args.discriminator=='made':

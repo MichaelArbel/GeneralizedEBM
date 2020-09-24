@@ -119,7 +119,10 @@ parser.add_argument('--freq_kale', default = 2000, type= int , help='frequency f
 parser.add_argument('--eval_fid', action='store_true', help='evaluate the FID scores [False]')
 parser.add_argument('--fid_samples', default = 50000, type= int,  help='number of generated samples to evaluate the score [50000]')
 parser.add_argument('--freq_fid', default = 2000, type= int, help='frequency for evaluating FID per iteratations [2000]')
+parser.add_argument('--oldest_fid_iter', default = 20000, type= int, help='frequency for evaluating FID per iteratations [2000]')
+parser.add_argument('--grad_clip', default = 1, type= int, help='frequency for evaluating FID per iteratations [2000]')
 
+parser.add_argument('--no_trunc', action='store_true', help='evaluate the FID scores [False]')
 
 
 parser.add_argument('--skipinit', action='store_true', help='calculate FID, but takes time')
