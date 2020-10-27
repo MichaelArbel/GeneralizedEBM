@@ -274,11 +274,11 @@ def get_latent_sampler(args,potential,Z_dim,device):
     elif args.latent_sampler=='dot':
         return samplers.DOT(potential,  T=args.num_sampler_steps,gamma=args.lmc_gamma)
     elif args.latent_sampler=='trunclangevin':
-        return samplers.TruncLangevinSampler(potential,momentum,trunc=args.trunc, sample_chain = args.lmc_sampler_chain, T=args.num_sampler_steps, num_steps_min=10, num_steps_max=20,gamma=args.lmc_gamma,  kappa = args.lmc_kappa)
+        return samplers.TruncLangevinSampler(potential,momentum,trunc=args.trunc,  T=args.num_sampler_steps, num_steps_min=10, num_steps_max=20,gamma=args.lmc_gamma,  kappa = args.lmc_kappa)
     elif args.latent_sampler=='mh':
-        return samplers.MetropolisHastings(potential, sample_chain = args.lmc_sampler_chain, T=args.num_sampler_steps, gamma=args.lmc_gamma )
+        return samplers.MetropolisHastings(potential, T=args.num_sampler_steps, gamma=args.lmc_gamma )
     elif args.latent_sampler=='imh':
-        return samplers.IndependentMetropolisHastings(potential, sample_chain = args.lmc_sampler_chain, T=args.num_sampler_steps, gamma=args.lmc_gamma)
+        return samplers.IndependentMetropolisHastings(potential,  T=args.num_sampler_steps, gamma=args.lmc_gamma)
 
 
 def get_latent_noise(args,dim,device):

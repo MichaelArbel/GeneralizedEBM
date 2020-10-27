@@ -150,14 +150,16 @@ class Trainer(object):
 
     def load_discriminator(self):
         d_model = torch.load(self.args.d_path, map_location= self.device )
-        self.discriminator.load_state_dict(d_model, strict=False)
-        self.discriminator = self.discriminator.to(self.device)
+        
+
         if self.args.criterion == 'kale':
             try:
                 self.log_partition = d_model['log_partition'].to(self.device)
             except:
                 self.log_partition = nn.Parameter(torch.zeros(1).to(self.device))
-
+        d_model.pop('log_partition', None)
+        self.discriminator.load_state_dict(d_model)
+        self.discriminator = self.discriminator.to(self.device)
 
     #### FOR TRAINING THE NETWORK
     def train(self):
@@ -282,13 +284,13 @@ class Trainer(object):
         with torch.set_grad_enabled(train_mode):
             true_results = self.discriminator(data)
             fake_results = self.discriminator(fake_data)
-            log_partition = self.compute_log_partition(fake_results, net_type)
+            log_partition, batch_log_partition = self.compute_log_partition(fake_results, net_type ,with_batch_est=True)
 
         if self.args.criterion in ['kale','donsker']:
             true_results = true_results + log_partition
             fake_results = fake_results + log_partition
         # calculate loss and propagate
-        loss = self.loss(true_results, fake_results, net_type) 
+        loss = self.loss(true_results, fake_results, net_type)
 
         if train_mode:
             total_loss = self.add_penalty(loss, net_type, data, fake_data)
@@ -296,6 +298,9 @@ class Trainer(object):
             if self.args.grad_clip>0:
                 self.grad_clip(optimizer, net_type=net_type)
             optimizer.step()
+
+        #if net_type == 'discriminator' and loss>0. and self.args.criterion in ['kale','donsker']:
+        #    self.log_partition.data = batch_log_partition.detach().clone()
         #print(loss.item())
         return loss
 
@@ -334,10 +339,13 @@ class Trainer(object):
         log_partition = log_partition - np.log(M)
         return torch.tensor(log_partition.item()).to(self.device)
 
-    def compute_log_partition(self,fake_results, net_type):
+    def compute_log_partition(self,fake_results, net_type, with_batch_est = False):
         batch_log_partition = torch.logsumexp(-fake_results, dim=0)- np.log(fake_results.shape[0])
         batch_log_partition = batch_log_partition.squeeze()
         val_log_partition = self.log_partition
+        tmp = fake_results + val_log_partition
+        #if torch.min(tmp)<-10.:
+        #    self.log_partition.data = batch_log_partition.item()*torch.ones_like(self.log_partition)
 
         if net_type=='discriminator':
             if self.args.criterion=='donsker':
@@ -346,8 +354,10 @@ class Trainer(object):
                 log_partition = val_log_partition
         else:
             log_partition = batch_log_partition
-
-        return log_partition
+        if with_batch_est:
+            return log_partition, batch_log_partition
+        else:
+            return log_partition
 
     def grad_clip(self,optimizer, net_type='discriminator'):
         if net_type=='discriminator':
@@ -478,7 +488,7 @@ class Trainer(object):
     def init_latents(self):
         if self.args.latent_sampler == 'dot':
             priors = 1.*self.eval_latents.unsqueeze(-1).clone()
-            max_samples = np.minimum(1000, self.eval_latents.shape[0])
+            max_samples = np.minimum(500, self.eval_latents.shape[0])
             self.latent_sampler.estimate_lip(self.eval_latents[:max_samples].to(self.device))
             out = torch.cat([self.eval_latents.unsqueeze(-1), priors ], dim=-1)
             return out
@@ -508,6 +518,7 @@ class Trainer(object):
                 posteriors = self.sample_latents(posteriors, self.args.sample_b_size , T)
 
             images = self.sample_images(self.get_posterior(posteriors),self.args.fid_b_size, as_list=True)
+            KALE_train, base_mean, log_partition = self.compute_kale(self.train_loader, images)
             fid_train, fid_test = self.compute_fid( images, loader_types = ['train','valid'])
             images = torch.cat(images, dim=0)
             saved_images = images[:64]
@@ -518,9 +529,9 @@ class Trainer(object):
             end = time.time()
             print(F'FID at step {iter_num}: {fid_train},  avg time {end-start}')
             start = end
-            #if i%20==0 and i>0:
-            #    self.latent_sampler.gamma *= 0.1
-            #    print(f'decreasing lr for sampling: {self.latent_sampler.gamma}')
+            if i%20==0 and i>0:
+                self.latent_sampler.gamma *= 0.1
+                print(f'decreasing lr for sampling: {self.latent_sampler.gamma}')
 
     def sample_latents(self,priors,b_size, T, with_acceptance = False):
         avg_time = 0

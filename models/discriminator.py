@@ -255,6 +255,10 @@ class Discriminator(nn.Module):
             output = self.main(input)
         if not self.no_trunc:
             output = nn.ReLU()(output+self.max)-self.max
+            #a = torch.min(output)
+            #print( str(a) )
+            #if a<=-self.max:
+            #    print("large error here")
         return output.view(-1, 1).squeeze(1)
 
 
