@@ -28,7 +28,6 @@ import models
 
 from utils.fid_scheduler import FIDScheduler, MMDScheduler
 from utils import vizualization as viz
-import utils.kid_score as kid_score
 
 class Trainer(object):
     def __init__(self, args):
@@ -227,14 +226,8 @@ class Trainer(object):
             self.eval_kale = is_valid_step and np.mod(counter,self.args.freq_kale)==0  and self.args.eval_kale
             self.eval()
             if self.args.use_scheduler:
-                if self.args.eval_fid:
-                    if self.eval_fid:
-                        self.fid_scheduler.step(self.fid_train, self.true_train_scores, self.fake_scores)
-                    # else:
-                    #     if np.mod(counter, 5000)==0 and valid_step and counter < 15001:
-                    #         print('decreasing lr')
-                    #         self.scheduler_d.step()
-                    #         self.scheduler_g.step()
+                if self.eval_fid:
+                    self.fid_scheduler.step(self.fid_train)
                 else:
                     valid_step = ((self.args.train_mode =='base' or  self.args.train_mode =='both') and is_gstep) or self.args.train_mode =='energy'
                     if np.mod(counter, 5000)==0 and valid_step:
@@ -251,10 +244,8 @@ class Trainer(object):
             if self.eval_fid:
             
                 images = torch.split( torch.cat(images, dim=0), self.args.fid_b_size, dim=0)
-                #self.get_activations(images, loader_types = ['train','valid'])
                 fid_train, fid_test = self.compute_fid( images, loader_types = ['train','valid'])
                 self.fid_train = fid_train
-                print(self.kids)
                 self.save_dictionary({'fid_train':fid_train, 'fid_test':fid_test, 'kid_train':self.kids['kid_train'],'kid_valid':self.kids['kid_valid'], 'fid_iter':self.g_counter})
 
 
@@ -381,74 +372,32 @@ class Trainer(object):
 
     # evaluate a pretrained model thoroughly via FID
     def compute_fid(self, gen_loader, loader_types = ['train','valid']):
-        self.get_activations(gen_loader,loader_types=loader_types )
-
-        fids = []
-        kids = []      
-        np_fake_scores = self.fake_scores.numpy()
-        mu2 = np.mean(np_fake_scores, axis=0)
-        sigma2 = np.cov(np_fake_scores, rowvar=False)
-
-        for loader_type in loader_types:
-            if loader_type == 'train':
-                data_loader = self.train_loader
-                np_true_scores = self.true_train_scores.numpy()
-                #if self.true_train_mu is None:
-                #    self.true_train_mu = np.mean(np_true_scores, axis=0)
-                #    self.true_train_sigma = np.cov(np_true_scores, rowvar=False)
-                #fid = cp.calculate_frechet_distance(self.true_train_mu, self.true_train_sigma, mu2, sigma2)
-            elif loader_type == 'valid':
-                data_loader = self.test_loader
-                np_true_scores = self.true_valid_scores.numpy()
-                #if self.true_valid_mu is None:
-                #    self.true_valid_mu = np.mean(np_true_scores, axis=0)
-                #    self.true_valid_sigma = np.cov(np_true_scores, rowvar=False)
-                #fid = cp.calculate_frechet_distance(self.true_valid_mu, self.true_valid_sigma, mu2, sigma2)
-            else:
-                raise NotImplementedError
-            mu1, sigma1 = cp.get_fid_stats(self.fid_model, data_loader, self.args.dataset, loader_type, self.device)            
-            fid = cp.calculate_frechet_distance(mu1, sigma1, mu2, sigma2)
-            kid = kid_score.polynomial_mmd_averages(np_true_scores, np_fake_scores, n_subsets=10)
-            kid = kid[0].mean()
-            fids.append(fid)
-            kids.append(kid)
-        self.kids = {'kid_train': kids[0], 'kid_valid':kids[1]}
-        return fids
-
-    def get_activations(self, gen_loader, loader_types = ['train','valid']):
         self.generator.to('cpu')
         self.discriminator.to('cpu')
         self.fid_model.to(self.device)
 
-        self.fake_scores = cp.get_activations_from_loader(gen_loader, self.fid_model, self.device, batch_size=self.args.fid_b_size, total_samples = self.args.fid_samples)
+        fids = []
+        pred_arr = cp.get_activations_from_loader(gen_loader, self.fid_model, self.device, self.args.fid_b_size )
+        pred_arr = pred_arr.numpy()
+        mu2 = np.mean(pred_arr, axis=0)
+        sigma2 = np.cov(pred_arr, rowvar=False)
         for loader_type in loader_types:
             if loader_type == 'train':
                 data_loader = self.train_loader
-                true_scores = self.true_train_scores
             elif loader_type == 'valid':
                 data_loader = self.test_loader
-                true_scores = self.true_valid_scores
             else:
                 raise NotImplementedError
-            path = 'metrics/res/stats_pytorch/fid_scores_'+self.args.dataset+'_'+loader_type+'.npz'
-        
-            if true_scores is None:
-                try:
-                    f = np.load(path)
-                    true_scores = f['scores'][:]
-                    f.close()
-                    true_scores = torch.tensor(true_scores)
-                except:
-                    print('==> Computing data stats')
-                    true_scores = cp.get_activations_from_loader(self.train_loader, self.fid_model, self.device, batch_size=self.args.fid_b_size,total_samples= self.args.fid_samples, is_tuple=True )
-                    np.savez(path, scores=true_scores.numpy())
-                if loader_type == 'train':
-                    self.true_train_scores = true_scores.clone()
-                elif loader_type == 'valid':
-                    self.true_valid_scores = true_scores.clone()
+
+            mu1, sigma1 = cp.get_fid_stats(self.fid_model, data_loader, self.args.dataset, loader_type, self.device)            
+            fid = cp.calculate_frechet_distance(mu1, sigma1, mu2, sigma2)
+            fids.append(fid)
+
         self.fid_model.to('cpu')
         self.generator.to(self.device)
         self.discriminator.to(self.device)
+
+        return fids
         
 
     def compute_kale(self,data_loader,base_loader, precomputed_stats=None):
