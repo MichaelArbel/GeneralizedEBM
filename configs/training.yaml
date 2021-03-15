@@ -2,11 +2,12 @@ b_size: 128
 
 total_gen_iter: 150000
 
+
 g_model : 'sngan'
 d_model : 'sngan'
 
 optimizer: Adam
-criterion : 'donsker'
+criterion : 'kale'
 log_dir : 'logs/'
 data_path : 'data/'
 log_name : ''
@@ -20,8 +21,8 @@ beta_1 : 0.5
 beta_2 : 0.999
 
 # train
-
 train_mode : 'both'
+mode : 'train'
 with_fid : True
 
 
@@ -47,5 +48,10 @@ eval_kale : True
 lmc_gamma : 0.001
 
 log_to_file : False
-mode : 'train'
+
+
+initialize_log_partition : True
+
+
+use_scheduler : True
 
