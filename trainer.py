@@ -228,7 +228,8 @@ class Trainer(object):
             self.eval()
             if self.args.use_scheduler:
                 if self.eval_fid:
-                    self.fid_scheduler.step(self.fid_train)
+                    #self.fid_scheduler.step(self.fid_train)
+                    self.fid_scheduler.step(self.fid_train, self.true_train_scores, self.fake_scores)
                 else:
                     valid_step = ((self.args.train_mode =='base' or  self.args.train_mode =='both') and is_gstep) or self.args.train_mode =='energy'
                     if np.mod(counter, 5000)==0 and valid_step:
