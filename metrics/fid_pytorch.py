@@ -208,6 +208,7 @@ def get_activations_from_loader(dataloader, model, device,batch_size=50, dims=20
        query tensor.
     """
     model.eval()
+    model.to(device)
 
     #n_batches = len(dataloader.dataset.data) // batch_size
     #n_used_imgs = n_batches * batch_size
@@ -231,6 +232,7 @@ def get_activations_from_loader(dataloader, model, device,batch_size=50, dims=20
     pred_arr = torch.cat(pred_arr, dim=0)
     if verbose:
         print(' done')
+    model.to('cpu')
     return pred_arr
 
 
